@@ -18,9 +18,9 @@ function CBL:OnInitialize()
 	ACD:AddToBlizOptions("ClassicBlacklist_Profiles", "Profiles", "ClassicBlacklist")
 
 	-- Register the necessary slash commands
-	self:RegisterChatCommand("cb", "OptionsSlashcommand")
-	self:RegisterChatCommand("blacklist", "OptionsSlashcommand")
-	self:RegisterChatCommand("testsound", "TestSoundSlashcommand")
+	self:RegisterChatCommand("cb", "slashcommand_options")
+	self:RegisterChatCommand("blacklist", "slashcommand_options")
+	self:RegisterChatCommand("testsound", "slashcommand_soundcheck")
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
@@ -36,15 +36,23 @@ function CBL:OnInitialize()
 		[[Interface\Addons\ClassicBlacklist\media\youve_violated_the_law.mp3]]
 	)
 
+	
+
+
 end
 
 function CBL:OnEnable()
-	local db = CBL.db.profile
-	
+	local db = self.db.profile
+
 	self.realm_name = GetRealmName()
+	self.player_faction = UnitFactionGroup("player")
+	self.time_last_alert = GetTime()
+
+	print("player_faction says")
+	print(self.player_faction)
 
 	-- Enable the requisite events here
-	
+	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 	-- Welcome message if requested
 	if db.welcome_message then
@@ -59,13 +67,12 @@ end
 
 ------------------------------------------------------------------------------------
 -- Register slashcommands 
-function CBL:OptionsSlashcommand(input, editbox)
-	-- PlaySoundFile([[Interface\Addons\ClassicBlacklist\media\criminal_scum.mp3]])
+function CBL:slashcommand_options(input, editbox)
 	local ACD = LibStub("AceConfigDialog-3.0")
 	ACD:Open(addon_name.."_Options")
 end
 
-function CBL:TestSoundSlashcommand()
+function CBL:slashcommand_soundcheck()
 	local db = CBL.db.profile
 	local sound_file = LSM:Fetch('sound', db.alert_sound)
 	PlaySoundFile(sound_file)
@@ -73,8 +80,40 @@ end
 
 ------------------------------------------------------------------------------------
 -- Callback functions for events
-cb.mouseover_event_handler = function()
+function CBL:UPDATE_MOUSEOVER_UNIT()
+	
+	-- First check the mouseover is another player on same faction
+	local is_same_faction = self.player_faction == UnitFactionGroup("mouseover")
+	if not is_same_faction or not UnitIsPlayer("mouseover") or 
+		UnitIsUnit("player", "mouseover") then return end
+	
+	-- Check the player against blacklist
+	local target_name = UnitName("mouseover")
+	self:Print("Mouseover friendly player called: " .. target_name)
+	local on_blacklist = self:check_name_against_blacklist(target_name)
+
+	if on_blacklist then
+		self:create_alert()
+	end
+end
+
+------------------------------------------------------------------------------------
+-- helper funcs
+function CBL:check_name_against_blacklist(player_name)
+	return true
+end
+
+-- alert funcs
+function CBL:create_alert()
 
 end
+
+function CBL:play_alert_sound()
+	local db = CBL.db.profile
+	if not db.b_play_alert_sound then return end
+	local sound_file = LSM:Fetch('sound', db.alert_sound)
+	PlaySoundFile(sound_file)
+end
+
 
 if cb.debug then CBL:Print("Finished parsing core.lua.") end
