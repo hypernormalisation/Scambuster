@@ -5,10 +5,7 @@
 ## Version: "@project-version@"
 ## DefaultState: enabled
 ## OptDeps: Ace3, LibSharedMedia-3.0, LibStub
-## SavedVariables: CBDB
-## X-Wago-ID: 
-## X-WoWI-ID: 
-## X-Curse-Project-ID: 
+## SavedVariables: ClassicBlacklistDB
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
