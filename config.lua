@@ -7,6 +7,11 @@ ClassicBlacklist.defaults = {
 	profile = {
 		welcome_message = true,
 		alert_sound = "CB: Criminal Scum!",
+        grace_period_s = 10,
+
+
+        -- alert settings
+        b_play_alert_sound = true,
 	},
 }
 
