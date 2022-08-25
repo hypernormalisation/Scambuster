@@ -1,18 +1,18 @@
 local addon_name, cb = ...
-local ClassicBlacklist = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
+local CBL = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 local LSM = LibStub("LibSharedMedia-3.0")
 cb.debug = true
 
+if cb.debug then CBL:Print("Parsing core.lua...") end
 
-if cb.debug then ClassicBlacklist:Print("Parsing core.lua...") end
-
-function ClassicBlacklist:OnInitialize()
+------------------------------------------------------------------------------------
+-- The basic AceAddon structure
+function CBL:OnInitialize()
 
 	local AC = LibStub("AceConfig-3.0")
 	local ACD = LibStub("AceConfigDialog-3.0")
-	local ClassicBlacklistDB = LibStub("AceDB-3.0"):New("ClassicBlacklist", self.defaults, true)
-	self.db = ClassicBlacklistDB
-	AC:RegisterOptionsTable("ClassicBlacklist_Options", self.options)
+	self.db = LibStub("AceDB-3.0"):New(addon_name.."Settings", self.defaults, true)
+	AC:RegisterOptionsTable(addon_name.."_Options", self.options)
 	local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	AC:RegisterOptionsTable("ClassicBlacklist_Profiles", profiles)
 	ACD:AddToBlizOptions("ClassicBlacklist_Profiles", "Profiles", "ClassicBlacklist")
@@ -38,33 +38,43 @@ function ClassicBlacklist:OnInitialize()
 
 end
 
-function ClassicBlacklist:OnEnable()
-	local db = ClassicBlacklist.db.profile
+function CBL:OnEnable()
+	local db = CBL.db.profile
 	
+	self.realm_name = GetRealmName()
+
 	-- Enable the requisite events here
 	
 
 	-- Welcome message if requested
 	if db.welcome_message then
-		ClassicBlacklist:Print('Loaded version 0.0.1.')
+		self:Print('Welcome to version 0.0.1.')
+		self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
 	end
 end
 
-function ClassicBlacklist:OnDisable()
-	
+function CBL:OnDisable()
+	-- might not need this'un
 end
 
-function ClassicBlacklist:OptionsSlashcommand(input, editbox)
+------------------------------------------------------------------------------------
+-- Register slashcommands 
+function CBL:OptionsSlashcommand(input, editbox)
 	-- PlaySoundFile([[Interface\Addons\ClassicBlacklist\media\criminal_scum.mp3]])
 	local ACD = LibStub("AceConfigDialog-3.0")
-	ACD:Open("ClassicBlacklist_Options")
+	ACD:Open(addon_name.."_Options")
 end
 
-function ClassicBlacklist:TestSoundSlashcommand()
-	local db = ClassicBlacklist.db.profile
+function CBL:TestSoundSlashcommand()
+	local db = CBL.db.profile
 	local sound_file = LSM:Fetch('sound', db.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
+------------------------------------------------------------------------------------
+-- Callback functions for events
+cb.mouseover_event_handler = function()
 
-if cb.debug then ClassicBlacklist:Print("Finished parsing core.lua.") end
+end
+
+if cb.debug then CBL:Print("Finished parsing core.lua.") end
