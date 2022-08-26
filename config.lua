@@ -4,9 +4,9 @@ local LSM = LibStub("LibSharedMedia-3.0")
 
 -- Default addon settings
 ClassicBlacklist.defaults = {
-	profile = {
+	global = {
 		welcome_message = true,
-		alert_sound = "CB: Criminal Scum!",
+		alert_sound = "CB: You've violated the law!",
         grace_period_s = 10,
 
 
@@ -37,9 +37,9 @@ ClassicBlacklist.options = {
 			desc = "The sound to play when a scammer is detected.",
 			dialogControl = "LSM30_Sound",
 			values = LSM:HashTable("sound"),
-			get = function(info) return ClassicBlacklist.db.profile.alert_sound or LSM.DefaultMedia.sound end,
+			get = function(info) return ClassicBlacklist.db.global.alert_sound or LSM.DefaultMedia.sound end,
 			set = function(self, key)
-				ClassicBlacklist.db.profile.alert_sound = key
+				ClassicBlacklist.db.global.alert_sound = key
 			end,
 		},
 	}
@@ -47,11 +47,11 @@ ClassicBlacklist.options = {
 
 
 function ClassicBlacklist:GetValue(info)
-	return self.db.profile[info[#info]]
+	return self.db.global[info[#info]]
 end
 
 function ClassicBlacklist:SetValue(info, value)
-	self.db.profile[info[#info]] = value
+	self.db.global[info[#info]] = value
 end
 
 if cb.debug then ClassicBlacklist:Print("Finished parsing config.lua.") end

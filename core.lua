@@ -9,18 +9,27 @@ if cb.debug then CBL:Print("Parsing core.lua...") end
 -- The basic AceAddon structure
 function CBL:OnInitialize()
 
+	-- Make the addon database
+	self.db = LibStub("AceDB-3.0"):New(addon_name.."DB", self.defaults, true)
+	
+
+	-- Register the options table
 	local AC = LibStub("AceConfig-3.0")
 	local ACD = LibStub("AceConfigDialog-3.0")
-	self.db = LibStub("AceDB-3.0"):New(addon_name.."Settings", self.defaults, true)
-	AC:RegisterOptionsTable(addon_name.."_Options", self.options)
-	local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
-	AC:RegisterOptionsTable("ClassicBlacklist_Profiles", profiles)
-	ACD:AddToBlizOptions("ClassicBlacklist_Profiles", "Profiles", "ClassicBlacklist")
+	
+	local options_name = addon_name.."_Options"
+	AC:RegisterOptionsTable(options_name, self.options)
+	self.optionsFrame = ACD:AddToBlizOptions(options_name, "ClassicBlacklist")
+
+	-- local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
+	-- self.optionsFrame = ACD:AddToBlizOptions("ClassicBlacklist_Profiles", "Profiles", addon_name)
 
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("cb", "slashcommand_options")
 	self:RegisterChatCommand("blacklist", "slashcommand_options")
 	self:RegisterChatCommand("testsound", "slashcommand_soundcheck")
+
+	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
@@ -42,7 +51,7 @@ function CBL:OnInitialize()
 end
 
 function CBL:OnEnable()
-	local db = self.db.profile
+	local db = self.db.global
 
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
@@ -73,9 +82,19 @@ function CBL:slashcommand_options(input, editbox)
 end
 
 function CBL:slashcommand_soundcheck()
-	local db = CBL.db.profile
+	local db = CBL.db.global
 	local sound_file = LSM:Fetch('sound', db.alert_sound)
 	PlaySoundFile(sound_file)
+end
+
+function CBL:slashcommand_dump_config()
+	local t = self.db.global
+	if type(t) == "table" then
+		for i, v in pairs(t) do
+			print(i, v)
+		end
+	end
+
 end
 
 ------------------------------------------------------------------------------------
@@ -89,10 +108,10 @@ function CBL:UPDATE_MOUSEOVER_UNIT()
 	
 	-- Check the player against blacklist
 	local target_name = UnitName("mouseover")
-	self:Print("Mouseover friendly player called: " .. target_name)
+	-- self:Print("Mouseover friendly player called: " .. target_name)
 	local on_blacklist = self:check_name_against_blacklist(target_name)
 
-	if on_blacklist then
+	if true then
 		self:create_alert()
 	end
 end
@@ -106,11 +125,38 @@ end
 -- alert funcs
 function CBL:create_alert()
 
+	-- Figure out if we're locked out.
+	if self:is_time_locked() then return end
+
+	-- Notify with the required methods.
+	self:play_alert_sound()
+
+end
+
+function CBL:is_time_locked()
+	-- func to tell if we're time locked on alerts
+
+	local db = self.db.global
+	local time_now = GetTime()
+	print('time_now = ' .. time_now)
+	print('Time of last alert = ' .. self.time_last_alert)
+	local time_since_last = time_now - self.time_last_alert
+	print('Time since last alert = ' .. time_since_last)
+	-- print('grace period = ', db.grace_period_s)
+	if time_since_last < db.grace_period_s then
+		print('locked out of alert')
+		return true
+	end
+
+	-- else set the new time and return false
+	self.time_last_alert = time_now
+	return false
 end
 
 function CBL:play_alert_sound()
-	local db = CBL.db.profile
-	if not db.b_play_alert_sound then return end
+	self:Print('playing alert')
+	local db = self.db.global
+	-- if not db.b_play_alert_sound then return end
 	local sound_file = LSM:Fetch('sound', db.alert_sound)
 	PlaySoundFile(sound_file)
 end
