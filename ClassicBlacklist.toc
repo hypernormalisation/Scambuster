@@ -21,3 +21,4 @@ Libs\AceConfig-3.0\AceConfig-3.0.xml
 
 core.lua
 config.lua
+bl_golemagg.lua

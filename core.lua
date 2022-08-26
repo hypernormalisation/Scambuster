@@ -11,7 +11,7 @@ function CBL:OnInitialize()
 
 	-- Make the addon database
 	self.db = LibStub("AceDB-3.0"):New(addon_name.."DB", self.defaults, true)
-	
+	self.conf = self.db.global --shorthand
 
 	-- Register the options table
 	local AC = LibStub("AceConfig-3.0")
@@ -26,7 +26,7 @@ function CBL:OnInitialize()
 	self:RegisterChatCommand("testbl", "slashcommand_testbl")
 	self:RegisterChatCommand("blacklist_target", "slashcommand_blacklist_target")
 
-	self:RegisterChatCommand("testsound", "slashcommand_soundcheck")
+	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
 	-- Register our custom sound alerts with LibSharedMedia
@@ -44,14 +44,18 @@ function CBL:OnInitialize()
 	)
 
 	-- Handle realm databases.
-	
-
+	if self.db.realm.central_blacklist == nil then
+		self.db.realm.central_blacklist = {}
+	end
+	self.cbl = self.db.realm.central_blacklist -- shorthand
+	if self.db.realm.user_blacklist == nil then
+		self.db.realm.user_blacklist = {}
+	end
+	self.ubl = self.db.realm.user_blacklist -- shorthand
 
 end
 
 function CBL:OnEnable()
-	local db = self.db.global
-
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
 	self.time_last_alert = GetTime()
@@ -63,7 +67,7 @@ function CBL:OnEnable()
 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 	-- Welcome message if requested
-	if db.welcome_message then
+	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
 		self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
 	end
@@ -81,8 +85,7 @@ function CBL:slashcommand_options(input, editbox)
 end
 
 function CBL:slashcommand_soundcheck()
-	local db = self.db.global
-	local sound_file = LSM:Fetch('sound', db.alert_sound)
+	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
@@ -107,9 +110,9 @@ function CBL:slashcommand_blacklist_target(reason)
 
 	
 	-- check if on blacklist already
-	if db[name] ~= nil then
+	if self.ubl[name] ~= nil then
 		self:Print("Target already on blacklist, updating info.")
-		db[name] = {
+		self.ubl[name] = {
 			class = class,
 			level = level,
 			guild = guild,
@@ -128,7 +131,7 @@ function CBL:slashcommand_blacklist_target(reason)
 	self:Print(str1)
 	self:Print('Reason to blacklist: ' .. reason)
 
-	db[name] = {
+	self.ubl[name] = {
 		class = class,
 		level = level,
 		guild = guild,
@@ -141,46 +144,31 @@ end
 
 
 function CBL:slashcommand_testbl()
-	local realm_db = self.db.realm
-	self:Print(realm_db)
-
-	if realm_db['Maarss'] == nil then
-		realm_db['Maarss'] = {
-			reason = 'Testing the addon',
-			class = 'Shaman',
-			level = 70,
-			guild = 'GrimSoul Legion',
-		}
-	end
-	for i, v in pairs(realm_db) do
-		print(i, v)
-	end
 end
 
 function CBL:slashcommand_dump_config()
 	self:Print('Dumping options table:')
-	local t = self.db.global
+	local t = self.conf
 	if type(t) == "table" then
 		for i, v in pairs(t) do
 			print(i, v)
 		end
 	end
-
 end
 
 ------------------------------------------------------------------------------------
 -- Callback functions for events
 function CBL:UPDATE_MOUSEOVER_UNIT()
-	
+
 	-- First check the mouseover is another player on same faction
 	local is_same_faction = self.player_faction == UnitFactionGroup("mouseover")
-	if not is_same_faction or not UnitIsPlayer("mouseover") or 
+	if not is_same_faction or not UnitIsPlayer("mouseover") or
 		UnitIsUnit("player", "mouseover") then return end
-	
+
 	-- Check the player against blacklist
 	local target_name = UnitName("mouseover")
 	-- self:Print("Mouseover friendly player called: " .. target_name)
-	local on_blacklist = self:check_name_against_blacklist(target_name)
+	local on_blacklist = self:check_against_ubl(target_name)
 
 	if on_blacklist then
 		self:create_alert()
@@ -191,7 +179,7 @@ end
 -- helper funcs
 function CBL:is_unit_eligible(unit_id)
 	-- Function to get info using the specified unit_id and
-	-- verify the target is another same-faction player
+	-- verify the unit in question is another same-faction player
 	if not UnitIsPlayer(unit_id) and UnitIsUnit("player", unit_id) then
 		return false
 	end
@@ -202,8 +190,8 @@ function CBL:is_unit_eligible(unit_id)
 	return true
 end
 
-function CBL:check_name_against_blacklist(player_name)
-	if type(self.db.realm[player_name]) == nil then
+function CBL:check_against_ubl(player_name)
+	if self.ubl[player_name] == nil then
 		return false
 	end
 	return true
@@ -223,14 +211,13 @@ end
 function CBL:is_time_locked()
 	-- func to tell if we're time locked on alerts
 
-	local db = self.db.global
 	local time_now = GetTime()
 	print('time_now = ' .. time_now)
 	print('Time of last alert = ' .. self.time_last_alert)
 	local time_since_last = time_now - self.time_last_alert
 	print('Time since last alert = ' .. time_since_last)
 	-- print('grace period = ', db.grace_period_s)
-	if time_since_last < db.grace_period_s then
+	if time_since_last < self.conf.grace_period_s then
 		print('locked out of alert')
 		return true
 	end
@@ -242,9 +229,8 @@ end
 
 function CBL:play_alert_sound()
 	self:Print('playing alert')
-	local db = self.db.global
 	-- if not db.b_play_alert_sound then return end
-	local sound_file = LSM:Fetch('sound', db.alert_sound)
+	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
