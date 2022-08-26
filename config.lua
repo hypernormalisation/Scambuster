@@ -1,24 +1,24 @@
 local addon_name, cb = ...
-ClassicBlacklist = LibStub("AceAddon-3.0"):GetAddon("ClassicBlacklist")
+CBL = LibStub("AceAddon-3.0"):GetAddon("ClassicBlacklist")
 local LSM = LibStub("LibSharedMedia-3.0")
 
 -- Default addon settings
-ClassicBlacklist.defaults = {
+CBL.defaults = {
 	global = {
 		welcome_message = true,
-		alert_sound = "CB: You've violated the law!",
-        grace_period_s = 10,
-
 
         -- alert settings
         b_play_alert_sound = true,
-	},
+		alert_sound = "CB: Criminal Scum!",
+        grace_period_s = 10,
+
+    },
 }
 
-ClassicBlacklist.options = {
+CBL.options = {
 	type = "group",
 	name = "ClassicBlacklist",
-	handler = ClassicBlacklist,
+	handler = CBL,
 
 	args = {
 		welcome_message = {
@@ -37,21 +37,21 @@ ClassicBlacklist.options = {
 			desc = "The sound to play when a scammer is detected.",
 			dialogControl = "LSM30_Sound",
 			values = LSM:HashTable("sound"),
-			get = function(info) return ClassicBlacklist.db.global.alert_sound or LSM.DefaultMedia.sound end,
+			get = function(info) return CBL.db.global.alert_sound or LSM.DefaultMedia.sound end,
 			set = function(self, key)
-				ClassicBlacklist.db.global.alert_sound = key
+				CBL.db.global.alert_sound = key
 			end,
 		},
 	}
 }
 
 
-function ClassicBlacklist:GetValue(info)
+function CBL:GetValue(info)
 	return self.db.global[info[#info]]
 end
 
-function ClassicBlacklist:SetValue(info, value)
+function CBL:SetValue(info, value)
 	self.db.global[info[#info]] = value
 end
 
-if cb.debug then ClassicBlacklist:Print("Finished parsing config.lua.") end
+if cb.debug then CBL:Print("Finished parsing config.lua.") end
