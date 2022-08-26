@@ -16,19 +16,17 @@ function CBL:OnInitialize()
 	-- Register the options table
 	local AC = LibStub("AceConfig-3.0")
 	local ACD = LibStub("AceConfigDialog-3.0")
-	
 	local options_name = addon_name.."_Options"
 	AC:RegisterOptionsTable(options_name, self.options)
 	self.optionsFrame = ACD:AddToBlizOptions(options_name, "ClassicBlacklist")
 
-	-- local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
-	-- self.optionsFrame = ACD:AddToBlizOptions("ClassicBlacklist_Profiles", "Profiles", addon_name)
-
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("cb", "slashcommand_options")
 	self:RegisterChatCommand("blacklist", "slashcommand_options")
-	self:RegisterChatCommand("testsound", "slashcommand_soundcheck")
+	self:RegisterChatCommand("testbl", "slashcommand_testbl")
+	self:RegisterChatCommand("blacklist_target", "slashcommand_blacklist_target")
 
+	self:RegisterChatCommand("testsound", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
 	-- Register our custom sound alerts with LibSharedMedia
@@ -45,6 +43,7 @@ function CBL:OnInitialize()
 		[[Interface\Addons\ClassicBlacklist\media\youve_violated_the_law.mp3]]
 	)
 
+	-- Handle realm databases.
 	
 
 
@@ -82,12 +81,84 @@ function CBL:slashcommand_options(input, editbox)
 end
 
 function CBL:slashcommand_soundcheck()
-	local db = CBL.db.global
+	local db = self.db.global
 	local sound_file = LSM:Fetch('sound', db.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
+function CBL:slashcommand_blacklist_target(reason)
+	local db = self.db.realm
+
+	if not self:is_unit_eligible("target") then
+		self:Print("Target is not a same-faction player and cannot be blacklisted!")
+		return
+	end
+
+	if reason == nil then
+		self:Print("Error: need a reason to blacklist target")
+		return
+	end
+	local name = UnitName("target")
+	local class = UnitClass("target")
+	local level = UnitLevel("target")
+	local race = UnitRace("target")
+
+	local guild = GetGuildInfo("target")
+
+	
+	-- check if on blacklist already
+	if db[name] ~= nil then
+		self:Print("Target already on blacklist, updating info.")
+		db[name] = {
+			class = class,
+			level = level,
+			guild = guild,
+			race = race,
+			reason = reason,
+		}
+		return
+	end
+	local str1 = ""
+	if guild == nil then
+		str1 = string.format("%s is a lvl %i %s %s", name, level, race, class)
+	
+	else
+		str1 = string.format("%s is a lvl %i %s %s with the guild %s", name, level, race, class, guild)
+	end
+	self:Print(str1)
+	self:Print('Reason to blacklist: ' .. reason)
+
+	db[name] = {
+		class = class,
+		level = level,
+		guild = guild,
+		race = race,
+		reason = reason,
+	}
+	self:Print('Added to blacklist!')
+
+end
+
+
+function CBL:slashcommand_testbl()
+	local realm_db = self.db.realm
+	self:Print(realm_db)
+
+	if realm_db['Maarss'] == nil then
+		realm_db['Maarss'] = {
+			reason = 'Testing the addon',
+			class = 'Shaman',
+			level = 70,
+			guild = 'GrimSoul Legion',
+		}
+	end
+	for i, v in pairs(realm_db) do
+		print(i, v)
+	end
+end
+
 function CBL:slashcommand_dump_config()
+	self:Print('Dumping options table:')
 	local t = self.db.global
 	if type(t) == "table" then
 		for i, v in pairs(t) do
@@ -111,14 +182,30 @@ function CBL:UPDATE_MOUSEOVER_UNIT()
 	-- self:Print("Mouseover friendly player called: " .. target_name)
 	local on_blacklist = self:check_name_against_blacklist(target_name)
 
-	if true then
+	if on_blacklist then
 		self:create_alert()
 	end
 end
 
 ------------------------------------------------------------------------------------
 -- helper funcs
+function CBL:is_unit_eligible(unit_id)
+	-- Function to get info using the specified unit_id and
+	-- verify the target is another same-faction player
+	if not UnitIsPlayer(unit_id) and UnitIsUnit("player", unit_id) then
+		return false
+	end
+	local is_same_faction = self.player_faction == UnitFactionGroup(unit_id)
+	if not is_same_faction then
+		return false
+	end
+	return true
+end
+
 function CBL:check_name_against_blacklist(player_name)
+	if type(self.db.realm[player_name]) == nil then
+		return false
+	end
 	return true
 end
 
