@@ -226,12 +226,12 @@ function CBL:load_cbl()
 			self.cbl[name] = {
 				reason = bl_data.reason,
 				evidence_url = bl_data.evidence_url,
+				ignore = false,
 			}
 		else
 			self.cbl[name] = {
 				reason = bl_data.reason,
 				evidence_url = bl_data.evidence_url,
-				ignore = false,
 			}
 		end
 	end
