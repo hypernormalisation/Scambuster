@@ -119,7 +119,7 @@ function CBL:slashcommand_blacklist_target(reason)
 			guild = guild,
 			race = race,
 			reason = reason,
-			last_seen = GetTime(),
+			last_seen = time(),
 		}
 		return
 	end
@@ -172,17 +172,19 @@ end
 function CBL:UPDATE_MOUSEOVER_UNIT()
 
 	-- First check the mouseover is another player on same faction
-	local is_same_faction = self.player_faction == UnitFactionGroup("mouseover")
-	if not is_same_faction or not UnitIsPlayer("mouseover") or
-		UnitIsUnit("player", "mouseover") then return end
+	local context = "mouseover"
+	local is_same_faction = self.player_faction == UnitFactionGroup(context)
+	if not is_same_faction or not UnitIsPlayer(context) or
+		UnitIsUnit("player", context) then return end
 
 	-- Check the player against blacklist
-	local target_name = UnitName("mouseover")
+	local target_name = UnitName(context)
 	-- self:Print("Mouseover friendly player called: " .. target_name)
-	local on_blacklist = self:check_against_ubl(target_name)
-
+	
+	local on_blacklist = self:check_against_cbl(target_name)
 	if on_blacklist then
 		self:create_alert()
+		self:update_cbl_dynamic(context)
 	end
 end
 
@@ -190,22 +192,20 @@ function CBL:CHAT_MSG_WHISPER(event_name, msg, player_name_realm,
 	_, _, player_name, _, _, _, _, _, line_id, player_guid)
 	local time_now = GetTime()
 	local on_ubl = self:check_against_ubl(player_name)
-
 end
 
 ------------------------------------------------------------------------------------
--- helper funcs
+-- helper funcs for loading and altering blacklists
 function CBL:load_cbl()
 	-- Function to load the central blacklist for the server
-	
+
 	if self.all_realms_cbl[self.realm_name] == nil then
 		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
 		return
 	end
 	self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
-
 	local module_table = self.all_realms_cbl[self.realm_name]
-	
+
 	-- First check the central blacklist module table against the realm data
 	-- and remove anyone who is no longer on the module table.
 	local names_to_remove = {}
@@ -219,34 +219,50 @@ function CBL:load_cbl()
 		self.cbl[name] = nil
 	end
 
-	-- Now create any new entries in the cbl as required.
+	-- Now update the table entries that are immutable to the player
 	for name, bl_data in pairs(module_table) do
-		if true then -- self.cbl[name] == nil then
+		-- don't overwrite any existing ignore preferences
+		if self.cbl[name] == nil then
 			self.cbl[name] = {
-				-- level = nil,
-				-- race = nil,
-				-- class = false,
-				-- guild = false,
-				-- last_seen = false,
+				reason = bl_data.reason,
+				evidence_url = bl_data.evidence_url,
+			}
+		else
+			self.cbl[name] = {
 				reason = bl_data.reason,
 				evidence_url = bl_data.evidence_url,
 				ignore = false,
 			}
 		end
 	end
-
-
-
 end
 
+function CBL:update_cbl_dynamic(unitId)
+	-- Function to update the dynamic information on the cbl
+	-- when we encounter a scammer in-game and can access their information.
+	-- unitId is the unit token e.g. "target", "mouseover", "partyN" etc
+	local name = UnitName(unitId)
+	local class = UnitClass(unitId)
+	local level = UnitLevel(unitId)
+	local race = UnitRace(unitId)
+	local guild = GetGuildInfo(unitId)
+	if self.cbl[name] ~= nil then
+		self:Print("Unit on cbl, updating info.")
+		self.cbl[name]["class"] = class
+		self.cbl[name]["level"] = level
+		self.cbl[name]["guild"] = guild
+		self.cbl[name]["race"] = race
+		self.cbl[name]["last_seen"] = time()
+	end
+end
 
-function CBL:is_unit_eligible(unit_id)
+function CBL:is_unit_eligible(unitId)
 	-- Function to get info using the specified unit_id and
 	-- verify the unit in question is another same-faction player
-	if not UnitIsPlayer(unit_id) and UnitIsUnit("player", unit_id) then
+	if not UnitIsPlayer(unitId) and UnitIsUnit("player", unitId) then
 		return false
 	end
-	local is_same_faction = self.player_faction == UnitFactionGroup(unit_id)
+	local is_same_faction = self.player_faction == UnitFactionGroup(unitId)
 	if not is_same_faction then
 		return false
 	end
@@ -255,6 +271,13 @@ end
 
 function CBL:check_against_ubl(player_name)
 	if self.ubl[player_name] == nil then
+		return false
+	end
+	return true
+end
+
+function CBL:check_against_cbl(player_name)
+	if self.cbl[player_name] == nil then
 		return false
 	end
 	return true
