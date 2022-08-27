@@ -57,9 +57,10 @@ function CBL:OnInitialize()
 end
 
 function CBL:OnEnable()
+	-- some basic post-load info to gather
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
-	self.time_last_alert = GetTime()
+
 
 	self:load_cbl()
 
@@ -199,17 +200,19 @@ end
 function CBL:load_cbl()
 	-- Function to load the central blacklist for the server
 
+	-- Verify we have realm data and if so fetch it
 	if self.all_realms_cbl[self.realm_name] == nil then
 		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
 		return
 	end
 	self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
 	local module_table = self.all_realms_cbl[self.realm_name]
+	self.has_cbl = true
 
 	-- First check the central blacklist module table against the realm data
 	-- and remove anyone who is no longer on the module table.
 	local names_to_remove = {}
-	for name, bl_data in pairs(self.cbl) do
+	for name, _ in pairs(self.cbl) do
 		if module_table[name] == nil then
 			self:Print(string.format("Player %s is no longer on the blacklist, removing...", name))
 			names_to_remove[name] = true
@@ -220,20 +223,16 @@ function CBL:load_cbl()
 	end
 
 	-- Now update the table entries that are immutable to the player
+	-- in case of an addon update.
 	for name, bl_data in pairs(module_table) do
-		-- don't overwrite any existing ignore preferences
+		self:Print(name, bl_data)
+		-- Create necessary tables and don't overwrite any existing ignore preferences
 		if self.cbl[name] == nil then
-			self.cbl[name] = {
-				reason = bl_data.reason,
-				evidence_url = bl_data.evidence_url,
-				ignore = false,
-			}
-		else
-			self.cbl[name] = {
-				reason = bl_data.reason,
-				evidence_url = bl_data.evidence_url,
-			}
+			self.cbl[name] = {}
+			self.cbl[name]["ignore"] = false
 		end
+		self.cbl[name]["reason"] = bl_data.reason
+		self.cbl[name]["evidence"] = bl_data.evidence
 	end
 end
 
@@ -241,7 +240,16 @@ function CBL:update_cbl_dynamic(unitId)
 	-- Function to update the dynamic information on the cbl
 	-- when we encounter a scammer in-game and can access their information.
 	-- unitId is the unit token e.g. "target", "mouseover", "partyN" etc
+	
+	-- Only update non last_seen data once every 10 mins
 	local name = UnitName(unitId)
+	local last_seen = self.cbl[name]["last_seen"]
+	if last_seen ~= nil and (time() - last_seen < 600) then
+		self:Print('locking update, too recent')
+		self.cbl[name]["last_seen"] = time()
+		return
+	end
+	
 	local class = UnitClass(unitId)
 	local level = UnitLevel(unitId)
 	local race = UnitRace(unitId)
@@ -298,6 +306,10 @@ function CBL:is_time_locked()
 	-- func to tell if we're time locked on alerts
 
 	local time_now = GetTime()
+	if self.time_since_laste == nil then
+		self.time_last_alert = time_now
+		return true
+	end
 	print('time_now = ' .. time_now)
 	print('Time of last alert = ' .. self.time_last_alert)
 	local time_since_last = time_now - self.time_last_alert
