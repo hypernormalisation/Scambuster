@@ -47,6 +47,7 @@ function CBL:OnInitialize()
 	if self.db.realm.central_blacklist == nil then
 		self.db.realm.central_blacklist = {}
 	end
+	self.has_cbl = false
 	self.cbl = self.db.realm.central_blacklist -- shorthand
 	if self.db.realm.user_blacklist == nil then
 		self.db.realm.user_blacklist = {}
@@ -60,6 +61,9 @@ function CBL:OnEnable()
 	self.player_faction = UnitFactionGroup("player")
 	self.time_last_alert = GetTime()
 
+	self:load_cbl()
+
+
 	print("player_faction says")
 	print(self.player_faction)
 
@@ -69,7 +73,6 @@ function CBL:OnEnable()
 	-- Welcome message if requested
 	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
-		self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
 	end
 end
 
@@ -105,9 +108,7 @@ function CBL:slashcommand_blacklist_target(reason)
 	local class = UnitClass("target")
 	local level = UnitLevel("target")
 	local race = UnitRace("target")
-
 	local guild = GetGuildInfo("target")
-
 	
 	-- check if on blacklist already
 	if self.ubl[name] ~= nil then
@@ -118,6 +119,7 @@ function CBL:slashcommand_blacklist_target(reason)
 			guild = guild,
 			race = race,
 			reason = reason,
+			last_seen = GetTime(),
 		}
 		return
 	end
@@ -144,6 +146,15 @@ end
 
 
 function CBL:slashcommand_testbl()
+	self:Print(self.cbl)
+	local t = self.cbl
+	for name, bl_data in pairs(t) do
+		print('------------------------')
+		self:Print(name, bl_data)
+		for k, v in pairs(bl_data) do
+			self:Print(k, v)
+		end
+	end
 end
 
 function CBL:slashcommand_dump_config()
@@ -175,8 +186,60 @@ function CBL:UPDATE_MOUSEOVER_UNIT()
 	end
 end
 
+function CBL:CHAT_MSG_WHISPER(event_name, msg, player_name_realm,
+	_, _, player_name, _, _, _, _, _, line_id, player_guid)
+	local time_now = GetTime()
+	local on_ubl = self:check_against_ubl(player_name)
+
+end
+
 ------------------------------------------------------------------------------------
 -- helper funcs
+function CBL:load_cbl()
+	-- Function to load the central blacklist for the server
+	
+	if self.all_realms_cbl[self.realm_name] == nil then
+		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
+		return
+	end
+	self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
+
+	local module_table = self.all_realms_cbl[self.realm_name]
+	
+	-- First check the central blacklist module table against the realm data
+	-- and remove anyone who is no longer on the module table.
+	local names_to_remove = {}
+	for name, bl_data in pairs(self.cbl) do
+		if module_table[name] == nil then
+			self:Print(string.format("Player %s is no longer on the blacklist, removing...", name))
+			names_to_remove[name] = true
+		end
+	end
+	for name, _ in pairs(names_to_remove) do
+		self.cbl[name] = nil
+	end
+
+	-- Now create any new entries in the cbl as required.
+	for name, bl_data in pairs(module_table) do
+		if true then -- self.cbl[name] == nil then
+			self.cbl[name] = {
+				-- level = nil,
+				-- race = nil,
+				-- class = false,
+				-- guild = false,
+				-- last_seen = false,
+				reason = bl_data.reason,
+				evidence_url = bl_data.evidence_url,
+				ignore = false,
+			}
+		end
+	end
+
+
+
+end
+
+
 function CBL:is_unit_eligible(unit_id)
 	-- Function to get info using the specified unit_id and
 	-- verify the unit in question is another same-faction player
