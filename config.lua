@@ -1,5 +1,5 @@
 local addon_name, cb = ...
-CBL = LibStub("AceAddon-3.0"):GetAddon("ClassicBlacklist")
+CBL = LibStub("AceAddon-3.0"):GetAddon(addon_name)
 local LSM = LibStub("LibSharedMedia-3.0")
 
 -- Default addon settings
