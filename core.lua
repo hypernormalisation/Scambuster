@@ -5,6 +5,12 @@ cb.debug = true
 
 if cb.debug then CBL:Print("Parsing core.lua...") end
 
+local function printtab(t)
+	for k, v in pairs(t) do
+		print(k, v)
+	end
+end
+
 ------------------------------------------------------------------------------------
 -- The basic AceAddon structure
 function CBL:OnInitialize()
@@ -159,6 +165,10 @@ end
 function CBL:slashcommand_blocklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
+	if UnitIsUnit("player", "target") == false then
+		self:Print("Error: command needs a target to function!")
+		return
+	end
 	local t = {
 		unitId = "target",
 		reason = reason,
@@ -167,8 +177,21 @@ function CBL:slashcommand_blocklist_target(reason)
 	self:add_to_ubl(t)
 end
 
-function CBL:slashcommand_blocklist_name(name, reason)
+function CBL:slashcommand_blocklist_name(args)
 	-- Places the name given on the ubl for the provided reason.
+	if args == "" then
+		self:Print("ERROR: command needs a name and a reason to list!")
+		self:Print("e.g: /blocklist_name Player Some reason to list")
+		return
+	end
+	local name, next_pos = self:GetArgs(args, 1)
+	name = name:gsub("^%l", string.upper)
+	if next_pos == 1e9 then
+		self:Print("ERROR: you gave only a name, give name and reason to list.")
+		self:Print("e.g: /blocklist_name Player Some reason to list")
+		return
+	end
+	local reason = args:sub(next_pos)
 	local t = {
 		name = name,
 		reason = reason
@@ -315,6 +338,7 @@ function CBL:add_to_ubl(t)
 	else
 		self:Print(string.format("%s will be placed on the user blocklist.", name))
 	end
+	self:Print("Reason: " .. reason)
 	self.ubl[name] = {
 		reason = reason,
 		ignore = false -- override any ignore settings
