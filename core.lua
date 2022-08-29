@@ -18,7 +18,7 @@ function CBL:OnInitialize()
 	local ACD = LibStub("AceConfigDialog-3.0")
 	local options_name = addon_name.."_Options"
 	AC:RegisterOptionsTable(options_name, self.options)
-	self.optionsFrame = ACD:AddToBlizOptions(options_name, "ClassicBlacklist")
+	self.optionsFrame = ACD:AddToBlizOptions(options_name, addon_name)
 
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("cb", "slashcommand_options")
@@ -32,23 +32,26 @@ function CBL:OnInitialize()
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
 		"sound", "CB: Criminal scum!",
-		[[Interface\Addons\ClassicBlacklist\media\criminal_scum.mp3]]
+		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
 	)
 	LSM:Register(
 		"sound", "CB: Not on my watch!",
-		[[Interface\Addons\ClassicBlacklist\media\nobody_breaks_the_law.mp3]]
+		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
 	)
 	LSM:Register(
 		"sound", "CB: You've violated the law!",
-		[[Interface\Addons\ClassicBlacklist\media\youve_violated_the_law.mp3]]
+		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
 	)
 
-	-- Handle realm databases.
-	if self.db.realm.central_blacklist == nil then
-		self.db.realm.central_blacklist = {}
-	end
+	-- if self.db.realm.central_blacklist == nil then
+	-- 	self.db.realm.central_blacklist = {}
+	-- end
+
+	-- Central blocklist
 	self.has_cbl = false
-	self.cbl = self.db.realm.central_blacklist -- shorthand
+	self.ignored_players = {}
+	-- self.cbl = self.db.realm.central_blacklist -- shorthand
+
 	if self.db.realm.user_blacklist == nil then
 		self.db.realm.user_blacklist = {}
 	end
@@ -61,12 +64,11 @@ function CBL:OnEnable()
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
 
-
-	self:load_cbl()
-
-
-	print("player_faction says")
-	print(self.player_faction)
+	-- Load necessary data.
+	self:load_dynamic_info()
+	self:load_ubl()
+	self:get_valid_providers()
+	self:load_cbl() -- constructed each time load/setting change
 
 	-- Enable the requisite events here
 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
@@ -82,6 +84,71 @@ function CBL:OnDisable()
 end
 
 ------------------------------------------------------------------------------------
+-- funcs to load info
+function CBL:load_ubl()
+	-- Loads the user blocklist data.
+	if self.db.realm.user_blacklist == nil then
+		self.db.realm.user_blacklist = {}
+	end
+	self.ubl = self.db.realm.user_blacklist -- shorthand
+end
+
+function CBL:load_dynamic_info()
+	-- Loads the dynamic information on scammers the player's client 
+	-- has gathered from the realm db.
+	if self.db.realm.player_dynamic_info == nil then
+		self.db.realm.player_dynamic_info = {}
+	end
+	-- if self.db.player_dynamic_info[self.realm_name] == nil then
+	-- 	self.db.player_dynamic_info.realm_name = {}
+	-- end
+	-- finally a shorthand for this realm's dynamic player data.
+	self.pdi = self.db.realm.player_dynamic_info
+end
+
+function CBL:get_valid_providers()
+	-- Verifies the format of providers and gets any valid realm data
+	self.valid_providers = {}
+	for provider, data in pairs(self.providers) do
+		if data == nil or data.realms == nil then
+			self:Print(
+				string.format("Provider %s is not properly configured!")
+			)
+		else
+			local r = data.realms[self.realm_name]
+			if r ~= nil and next(r) ~= nil then
+				self.valid_providers[provider] = r
+			end
+		end
+	end
+end
+
+function CBL:load_cbl()
+	-- Constructs the central blocklist from the valid providers.
+	self.cbl = {}
+	if self.valid_providers == nil or next(self.valid_providers) == nil then
+		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
+		return
+	end
+	self.has_cbl = true
+
+	-- TO-DO: options for enabled/disabled providers, handle provider precedence here.
+
+	-- Assemble cbl, append provider to info.
+	for provider, data in pairs(self.valid_providers) do
+		for player, pdata in pairs(data) do
+			self.cbl[player] = {
+				provider = provider,
+				reason = pdata.reason,
+				evidence = pdata.evidence,
+				ignore = false, -- TO-DO: load this from settings
+			}
+		end
+	end
+
+end
+
+------------------------------------------------------------------------------------
 -- Register slashcommands 
 function CBL:slashcommand_options(input, editbox)
 	local ACD = LibStub("AceConfigDialog-3.0")
@@ -94,55 +161,36 @@ function CBL:slashcommand_soundcheck()
 end
 
 function CBL:slashcommand_blacklist_target(reason)
-	local db = self.db.realm
-
-	if not self:is_unit_eligible("target") then
-		self:Print("Target is not a same-faction player and cannot be blacklisted!")
-		return
-	end
-
+	-- Places the current target on the user blocklist for the provided reason.
+	-- Must provide a reason!
 	if reason == nil then
 		self:Print("Error: need a reason to blacklist target")
 		return
 	end
-	local name = UnitName("target")
-	local class = UnitClass("target")
-	local level = UnitLevel("target")
-	local race = UnitRace("target")
-	local guild = GetGuildInfo("target")
-	
-	-- check if on blacklist already
-	if self.ubl[name] ~= nil then
-		self:Print("Target already on blacklist, updating info.")
-		self.ubl[name] = {
-			class = class,
-			level = level,
-			guild = guild,
-			race = race,
-			reason = reason,
-			last_seen = time(),
-		}
+	local context = "target"
+	if not self:is_unit_eligible(context) then
+		self:Print("Target is not a same-faction player and cannot be blacklisted!")
 		return
 	end
-	local str1 = ""
-	if guild == nil then
-		str1 = string.format("%s is a lvl %i %s %s", name, level, race, class)
-	
-	else
-		str1 = string.format("%s is a lvl %i %s %s with the guild %s", name, level, race, class, guild)
+	local name = UnitName(context)
+	if name == nil then
+		self:Print("ERROR: name from API not valid.")
+		return
 	end
-	self:Print(str1)
-	self:Print('Reason to blacklist: ' .. reason)
 
+	-- Record player's dynamic information.
+	self:update_pdi(context)
+
+	-- check if on blacklist already
+	if self.ubl[name] ~= nil then
+		self:Print(string.format("%s is already on user blocklist, updating info.", name))
+	else
+		self:Print(string.format("%s will be placed on the user blocklist.", name))
+	end
 	self.ubl[name] = {
-		class = class,
-		level = level,
-		guild = guild,
-		race = race,
 		reason = reason,
+		ignore = false -- override any ignore settings
 	}
-	self:Print('Added to blacklist!')
-
 end
 
 
@@ -150,7 +198,27 @@ function CBL:slashcommand_testbl()
 	self:Print(self.cbl)
 	local t = self.cbl
 	for name, bl_data in pairs(t) do
+		self:Print("cbl:")
 		print('------------------------')
+		self:Print(name, bl_data)
+		for k, v in pairs(bl_data) do
+			self:Print(k, v)
+		end
+	end
+	local t = self.ubl
+	for name, bl_data in pairs(t) do
+		print('------------------------')
+		self:Print("ubl:")
+		self:Print(name, bl_data)
+		for k, v in pairs(bl_data) do
+			self:Print(k, v)
+		end
+	end
+	self:Print(self.pdi)
+	local t = self.pdi
+	for name, bl_data in pairs(t) do
+		print('------------------------')
+		self:Print("pdi:")
 		self:Print(name, bl_data)
 		for k, v in pairs(bl_data) do
 			self:Print(k, v)
@@ -178,14 +246,14 @@ function CBL:UPDATE_MOUSEOVER_UNIT()
 	if not is_same_faction or not UnitIsPlayer(context) or
 		UnitIsUnit("player", context) then return end
 
-	-- Check the player against blacklist
-	local target_name = UnitName(context)
-	-- self:Print("Mouseover friendly player called: " .. target_name)
-	
-	local on_blacklist = self:check_against_cbl(target_name)
-	if on_blacklist then
+	-- Check the player against cbl and update as necessary.
+	local name = UnitName(context)
+	if self:check_against_bls(name) then
+		self:update_pdi(context)
+	end
+
+	if self.has_cbl and self:check_against_cbl(name) then
 		self:create_alert()
-		self:update_cbl_dynamic(context)
 	end
 end
 
@@ -197,71 +265,42 @@ end
 
 ------------------------------------------------------------------------------------
 -- helper funcs for loading and altering blacklists
-function CBL:load_cbl()
-	-- Function to load the central blacklist for the server
-
-	-- Verify we have realm data and if so fetch it
-	if self.all_realms_cbl[self.realm_name] == nil then
-		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
-		return
-	end
-	self:Print('Loading blacklist data for ' .. CBL.realm_name .. '...')
-	local module_table = self.all_realms_cbl[self.realm_name]
-	self.has_cbl = true
-
-	-- First check the central blacklist module table against the realm data
-	-- and remove anyone who is no longer on the module table.
-	local names_to_remove = {}
-	for name, _ in pairs(self.cbl) do
-		if module_table[name] == nil then
-			self:Print(string.format("Player %s is no longer on the blacklist, removing...", name))
-			names_to_remove[name] = true
-		end
-	end
-	for name, _ in pairs(names_to_remove) do
-		self.cbl[name] = nil
-	end
-
-	-- Now update the table entries that are immutable to the player
-	-- in case of an addon update.
-	for name, bl_data in pairs(module_table) do
-		self:Print(name, bl_data)
-		-- Create necessary tables and don't overwrite any existing ignore preferences
-		if self.cbl[name] == nil then
-			self.cbl[name] = {}
-			self.cbl[name]["ignore"] = false
-		end
-		self.cbl[name]["reason"] = bl_data.reason
-		self.cbl[name]["evidence"] = bl_data.evidence
-	end
-end
-
-function CBL:update_cbl_dynamic(unitId)
-	-- Function to update the dynamic information on the cbl
+function CBL:update_pdi(unitId)
+	-- Function to update the player dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
 	-- unitId is the unit token e.g. "target", "mouseover", "partyN" etc
-	
-	-- Only update non last_seen data once every 10 mins
 	local name = UnitName(unitId)
-	local last_seen = self.cbl[name]["last_seen"]
-	if last_seen ~= nil and (time() - last_seen < 600) then
-		self:Print('locking update, too recent')
-		self.cbl[name]["last_seen"] = time()
+	if name == nil then
+		self:Print("ERROR: name from API not valid.")
 		return
 	end
-	
+	if self.pdi[name] == nil then
+		self.pdi[name] = {}
+	end
+	local last_seen = self.pdi[name]["last_seen"]
+	-- Only update non last_seen data once every 10 mins
+	if last_seen ~= nil and (time() - last_seen < 600) then
+		self:Print('locking update, too recent')
+		self.pdi[name]["last_seen"] = time()
+		return
+	end
+
 	local class = UnitClass(unitId)
 	local level = UnitLevel(unitId)
 	local race = UnitRace(unitId)
 	local guild = GetGuildInfo(unitId)
-	if self.cbl[name] ~= nil then
-		self:Print("Unit on cbl, updating info.")
-		self.cbl[name]["class"] = class
-		self.cbl[name]["level"] = level
-		self.cbl[name]["guild"] = guild
-		self.cbl[name]["race"] = race
-		self.cbl[name]["last_seen"] = time()
+	if self.pdi[name] == nil then
+		self:Print(string.format('Registering new info for %s', name))
+	else
+		self:Print(string.format('Updating info for %s', name))
 	end
+	self.pdi[name] = {
+		class = class,
+		level = level,
+		guild = guild,
+		race = race,
+		last_seen = time()
+	}
 end
 
 function CBL:is_unit_eligible(unitId)
@@ -289,6 +328,10 @@ function CBL:check_against_cbl(player_name)
 		return false
 	end
 	return true
+end
+
+function CBL:check_against_bls(player_name)
+	return self:check_against_ubl(player_name) or self:check_against_cbl(player_name)
 end
 
 -- alert funcs
