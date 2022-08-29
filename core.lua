@@ -21,10 +21,11 @@ function CBL:OnInitialize()
 	self.optionsFrame = ACD:AddToBlizOptions(options_name, addon_name)
 
 	-- Register the necessary slash commands
-	self:RegisterChatCommand("cb", "slashcommand_options")
-	self:RegisterChatCommand("blacklist", "slashcommand_options")
+	self:RegisterChatCommand("cp", "slashcommand_options")
+	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	self:RegisterChatCommand("testbl", "slashcommand_testbl")
-	self:RegisterChatCommand("blacklist_target", "slashcommand_blacklist_target")
+	self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
+	self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 
 	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
@@ -155,14 +156,24 @@ function CBL:slashcommand_soundcheck()
 	PlaySoundFile(sound_file)
 end
 
-function CBL:slashcommand_blacklist_target(reason)
+function CBL:slashcommand_blocklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
 	local t = {
-		unitID = "target",
+		unitId = "target",
 		reason = reason,
 	}
-	self:add_to_ubl("target", t)
+	print(t.unitId, "<"..t.reason..">")
+	self:add_to_ubl(t)
+end
+
+function CBL:slashcommand_blocklist_name(name, reason)
+	-- Places the name given on the ubl for the provided reason.
+	local t = {
+		name = name,
+		reason = reason
+	}
+	self:add_to_ubl(t)
 end
 
 function CBL:slashcommand_testbl()
@@ -277,25 +288,26 @@ end
 function CBL:add_to_ubl(t)
 	-- Function to add to the ubl. t should be a table with at least one 
 	-- of unitID or name, and always with reason.
-	local unitID = t.unitId
+	local unitId = t.unitId
 	local name = t.name
 	local reason = t.reason
+	CBL:Print(name, unitId, reason)
 	if reason == nil then
 		self:Print("Error: need a reason to blacklist target")
 		return
 	end
-	if unitID ~= nil then
-		if not self:is_unit_eligible(unitID) then
+	if unitId ~= nil then
+		if not self:is_unit_eligible(unitId) then
 			self:Print("Unit is not a same-faction player and cannot be blacklisted!")
 			return
 		end
-		name = UnitName(unitID)
+		name = UnitName(unitId)
 		if name == nil then
 			self:Print("ERROR: name from API not valid.")
 			return
 		end
 		-- Record player's dynamic information.
-		self:update_pdi(unitID)
+		self:update_pdi(unitId)
 	end
 	-- check if on blacklist already
 	if self.ubl[name] ~= nil then
