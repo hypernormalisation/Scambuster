@@ -9,7 +9,7 @@ CBL.defaults = {
 
         -- alert settings
         b_play_alert_sound = true,
-		alert_sound = "CB: Criminal Scum!",
+		alert_sound = "Cutpurse: Criminal Scum!",
         grace_period_s = 10,
 
     },
