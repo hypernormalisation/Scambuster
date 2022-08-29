@@ -2,7 +2,7 @@ local addon_name, cb = ...
 CBL = LibStub("AceAddon-3.0"):GetAddon(addon_name)
 
 local golemagg_bl = {
-    ["Playera"] = {
+    ["Aqualeaf"] = {
         reason = "Test: stole all the gold from a GDKP.",
         evidence = "https://discord.com/channels/610036506974748700/1011016570467790979/1011657792651788289",
     },

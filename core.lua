@@ -31,27 +31,21 @@ function CBL:OnInitialize()
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
-		"sound", "CB: Criminal scum!",
+		"sound", "Cutpurse: Criminal scum!",
 		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "CB: Not on my watch!",
+		"sound", "Cutpurse: Not on my watch!",
 		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "CB: You've violated the law!",
+		"sound", "Cutpurse: You've violated the law!",
 		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
 	)
-
-	-- if self.db.realm.central_blacklist == nil then
-	-- 	self.db.realm.central_blacklist = {}
-	-- end
 
 	-- Central blocklist
 	self.has_cbl = false
 	self.ignored_players = {}
-	-- self.cbl = self.db.realm.central_blacklist -- shorthand
-
 	if self.db.realm.user_blacklist == nil then
 		self.db.realm.user_blacklist = {}
 	end
@@ -65,6 +59,8 @@ function CBL:OnEnable()
 	self.player_faction = UnitFactionGroup("player")
 
 	-- Load necessary data.
+	-- We do this here so extensions can init their
+	-- provider blocklists before we construct the cbl.
 	self:load_dynamic_info()
 	self:load_ubl()
 	self:get_valid_providers()
@@ -145,7 +141,6 @@ function CBL:load_cbl()
 			}
 		end
 	end
-
 end
 
 ------------------------------------------------------------------------------------
@@ -163,36 +158,12 @@ end
 function CBL:slashcommand_blacklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
-	if reason == nil then
-		self:Print("Error: need a reason to blacklist target")
-		return
-	end
-	local context = "target"
-	if not self:is_unit_eligible(context) then
-		self:Print("Target is not a same-faction player and cannot be blacklisted!")
-		return
-	end
-	local name = UnitName(context)
-	if name == nil then
-		self:Print("ERROR: name from API not valid.")
-		return
-	end
-
-	-- Record player's dynamic information.
-	self:update_pdi(context)
-
-	-- check if on blacklist already
-	if self.ubl[name] ~= nil then
-		self:Print(string.format("%s is already on user blocklist, updating info.", name))
-	else
-		self:Print(string.format("%s will be placed on the user blocklist.", name))
-	end
-	self.ubl[name] = {
+	local t = {
+		unitID = "target",
 		reason = reason,
-		ignore = false -- override any ignore settings
 	}
+	self:add_to_ubl("target", t)
 end
-
 
 function CBL:slashcommand_testbl()
 	self:Print(self.cbl)
@@ -300,6 +271,41 @@ function CBL:update_pdi(unitId)
 		guild = guild,
 		race = race,
 		last_seen = time()
+	}
+end
+
+function CBL:add_to_ubl(t)
+	-- Function to add to the ubl. t should be a table with at least one 
+	-- of unitID or name, and always with reason.
+	local unitID = t.unitId
+	local name = t.name
+	local reason = t.reason
+	if reason == nil then
+		self:Print("Error: need a reason to blacklist target")
+		return
+	end
+	if unitID ~= nil then
+		if not self:is_unit_eligible(unitID) then
+			self:Print("Unit is not a same-faction player and cannot be blacklisted!")
+			return
+		end
+		name = UnitName(unitID)
+		if name == nil then
+			self:Print("ERROR: name from API not valid.")
+			return
+		end
+		-- Record player's dynamic information.
+		self:update_pdi(unitID)
+	end
+	-- check if on blacklist already
+	if self.ubl[name] ~= nil then
+		self:Print(string.format("%s is already on user blocklist, updating info.", name))
+	else
+		self:Print(string.format("%s will be placed on the user blocklist.", name))
+	end
+	self.ubl[name] = {
+		reason = reason,
+		ignore = false -- override any ignore settings
 	}
 end
 
