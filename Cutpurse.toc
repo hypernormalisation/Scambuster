@@ -1,6 +1,6 @@
-## Interface: 20504
-## Title: ClassicBlacklist
-## Notes: Scammer warnings with blacklists curated by realm discords.
+## Interface: 30400
+## Title: Cutpurse
+## Notes: Scammer warnings with blocklists curated by realm discords.
 ## Author: Swedge
 ## Version: "@project-version@"
 ## DefaultState: enabled
