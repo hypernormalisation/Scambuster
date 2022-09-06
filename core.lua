@@ -97,15 +97,12 @@ function CBL:load_ubl()
 end
 
 function CBL:load_dynamic_info()
-	-- Loads the dynamic information on scammers the player's client 
+	-- Sets up the dynamic information on scammers the player's client 
 	-- has gathered from the realm db.
 	if self.db.realm.player_dynamic_info == nil then
 		self.db.realm.player_dynamic_info = {}
 	end
-	-- if self.db.player_dynamic_info[self.realm_name] == nil then
-	-- 	self.db.player_dynamic_info.realm_name = {}
-	-- end
-	-- finally a shorthand for this realm's dynamic player data.
+	-- A shorthand for this realm's dynamic player data.
 	self.pdi = self.db.realm.player_dynamic_info
 end
 
@@ -165,7 +162,7 @@ end
 function CBL:slashcommand_blocklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
-	if UnitIsUnit("player", "target") == false then
+	if not self.is_target_eligible() then
 		self:Print("Error: command needs a target to function!")
 		return
 	end
@@ -257,6 +254,7 @@ function CBL:UPDATE_MOUSEOVER_UNIT()
 		self:update_pdi(context)
 	end
 
+	-- Placeholder for alerts.
 	if self.has_cbl and self:check_against_cbl(name) then
 		self:create_alert()
 	end
@@ -268,6 +266,16 @@ function CBL:CHAT_MSG_WHISPER(event_name, msg, player_name_realm,
 	local on_ubl = self:check_against_ubl(player_name)
 end
 
+function CBL:PLAYER_TARGET_CHANGED()
+	if not self:is_target_eligible() and self:is_unit_eligible() then
+		return
+	end
+	local name = UnitName("target")
+	if self:check_against_bls() then
+		self:update_pdi("target")
+	end
+	-- Placeholder for alerts.
+end
 ------------------------------------------------------------------------------------
 -- helper funcs for loading and altering blacklists
 function CBL:update_pdi(unitId)
@@ -353,6 +361,14 @@ function CBL:is_unit_eligible(unitId)
 	end
 	local is_same_faction = self.player_faction == UnitFactionGroup(unitId)
 	if not is_same_faction then
+		return false
+	end
+	return true
+end
+
+function CBL:is_target_eligible()
+	if UnitIsUnit("player", "target") == false then
+		-- self:Print("Error: command needs a target to function!")
 		return false
 	end
 	return true
