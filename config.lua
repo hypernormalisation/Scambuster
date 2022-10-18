@@ -1,3 +1,6 @@
+--=========================================================================================
+-- Options tables and config module.
+--=========================================================================================
 local addon_name, cb = ...
 CBL = LibStub("AceAddon-3.0"):GetAddon(addon_name)
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -17,7 +20,7 @@ CBL.defaults = {
 
 CBL.options = {
 	type = "group",
-	name = "ClassicBlacklist",
+	name = "Cutpurse",
 	handler = CBL,
 
 	args = {
@@ -37,10 +40,8 @@ CBL.options = {
 			desc = "The sound to play when a scammer is detected.",
 			dialogControl = "LSM30_Sound",
 			values = LSM:HashTable("sound"),
-			get = function(info) return CBL.db.global.alert_sound or LSM.DefaultMedia.sound end,
-			set = function(self, key)
-				CBL.db.global.alert_sound = key
-			end,
+			get = "GetValue",
+			set = "SetValue",
 		},
 	}
 }
