@@ -19,6 +19,20 @@ end
 --=========================================================================================
 function CBL:OnInitialize()
 
+	-- Register our custom sound alerts with LibSharedMedia
+	LSM:Register(
+		"sound", "Cutpurse: Criminal scum!",
+		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
+	)
+	LSM:Register(
+		"sound", "Cutpurse: Not on my watch!",
+		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
+	)
+	LSM:Register(
+		"sound", "Cutpurse: You've violated the law!",
+		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
+	)
+
 	-- Make the addon database
 	self.db = LibStub("AceDB-3.0"):New(addon_name.."DB", self.defaults, true)
 	self.conf = self.db.global --shorthand
@@ -38,20 +52,6 @@ function CBL:OnInitialize()
 	self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
-
-	-- Register our custom sound alerts with LibSharedMedia
-	LSM:Register(
-		"sound", "Cutpurse: Criminal scum!",
-		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
-	)
-	LSM:Register(
-		"sound", "Cutpurse: Not on my watch!",
-		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
-	)
-	LSM:Register(
-		"sound", "Cutpurse: You've violated the law!",
-		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
-	)
 
 	-- Construct the central blocklist if one is present.
 	self.has_cbl = false
@@ -299,17 +299,18 @@ function CBL:update_pdi(unitId)
 		self.pdi[name] = {}
 	end
 	local last_seen = self.pdi[name]["last_seen"]
-	-- Only update non last_seen data once every 10 mins
-	if last_seen ~= nil and (time() - last_seen < 600) then
-		self:Print('locking update, too recent')
-		self.pdi[name]["last_seen"] = time()
-		return
-	end
+	-- -- Only update non last_seen data once every 10 mins
+	-- if last_seen ~= nil and (time() - last_seen < 600) then
+	-- 	self:Print('locking update, too recent')
+	-- 	self.pdi[name]["last_seen"] = time()
+	-- 	return
+	-- end
 
 	local class = UnitClass(unitId)
 	local level = UnitLevel(unitId)
 	local race = UnitRace(unitId)
 	local guild = GetGuildInfo(unitId)
+	local guid = UnitGUID(unitId)
 	if self.pdi[name] == nil then
 		self:Print(string.format('Registering new info for %s', name))
 	else
@@ -320,6 +321,7 @@ function CBL:update_pdi(unitId)
 		level = level,
 		guild = guild,
 		race = race,
+		guid = guid,
 		last_seen = time()
 	}
 end
