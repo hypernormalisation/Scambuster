@@ -1,3 +1,6 @@
+--=========================================================================================
+-- Main module for Cutpurse
+--=========================================================================================
 local addon_name, cb = ...
 local CBL = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -11,8 +14,9 @@ local function printtab(t)
 	end
 end
 
-------------------------------------------------------------------------------------
+--=========================================================================================
 -- The basic AceAddon structure
+--=========================================================================================
 function CBL:OnInitialize()
 
 	-- Make the addon database
@@ -32,7 +36,6 @@ function CBL:OnInitialize()
 	self:RegisterChatCommand("testbl", "slashcommand_testbl")
 	self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
-
 	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
@@ -50,7 +53,7 @@ function CBL:OnInitialize()
 		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
 	)
 
-	-- Central blocklist
+	-- Construct the central blocklist if one is present.
 	self.has_cbl = false
 	self.ignored_players = {}
 	if self.db.realm.user_blacklist == nil then
@@ -86,8 +89,9 @@ function CBL:OnDisable()
 	-- might not need this'un
 end
 
-------------------------------------------------------------------------------------
+--=========================================================================================
 -- funcs to load info
+--=========================================================================================
 function CBL:load_ubl()
 	-- Loads the user blocklist data.
 	if self.db.realm.user_blacklist == nil then
@@ -147,8 +151,9 @@ function CBL:load_cbl()
 	end
 end
 
-------------------------------------------------------------------------------------
--- Register slashcommands 
+--=========================================================================================
+-- Register slashcommands
+--=========================================================================================
 function CBL:slashcommand_options(input, editbox)
 	local ACD = LibStub("AceConfigDialog-3.0")
 	ACD:Open(addon_name.."_Options")
@@ -238,8 +243,9 @@ function CBL:slashcommand_dump_config()
 	end
 end
 
-------------------------------------------------------------------------------------
--- Callback functions for events
+--=========================================================================================
+-- WoW API callbacks
+--=========================================================================================
 function CBL:UPDATE_MOUSEOVER_UNIT()
 
 	-- First check the mouseover is another player on same faction
@@ -276,8 +282,10 @@ function CBL:PLAYER_TARGET_CHANGED()
 	end
 	-- Placeholder for alerts.
 end
-------------------------------------------------------------------------------------
+
+--=========================================================================================
 -- helper funcs for loading and altering blacklists
+--=========================================================================================
 function CBL:update_pdi(unitId)
 	-- Function to update the player dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
