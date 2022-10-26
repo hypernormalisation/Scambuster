@@ -93,7 +93,8 @@ function CP:OnEnable()
 	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
 	end
-	self:RegisterEvent("CHAT_MSG_SYSTEM")
+	self:RegisterEvent("GROUP_ROSTER_UPDATE")
+	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 end
 
 function CP:OnDisable()
@@ -146,20 +147,39 @@ function CP:PLAYER_TARGET_CHANGED()
 	-- Placeholder for alerts.
 end
 
-function CP:CHAT_MSG_SYSTEM(
-		event_name, msg, _, _, _, _, _, _, _, _, line_id
-	)
-	print('got a system msg')
-
-	-- Scan for join requests from the group finder. There is no associated event,
-	-- we have to parse the system message itself, which depends on locale.
-	if string.find(msg, L["has requested to join your group"]) then
-		print('got a group inv')
-
-		-- The name is always between [ ] parentheses, so extract it with a regex.
-		local name = msg:match("%[(%a+)%]")
-		self:Print(name)
+function CP:GROUP_ROSTER_UPDATE()
+	local members = {}
+	if not IsInGroup() then
+		print("not in a group")
+		return
 	end
+	-- Based on reading online, might need a short C_Timer in here if the unit info
+	-- isn't available 
+	local n, unit = GetNumGroupMembers(), "raid"
+	if not IsInRaid() then
+		n, unit = n - 1, "party"
+	end
+	for i = 1, n do
+		local name = GetUnitName(unit..i, true)
+		if name and name ~= "UNKNOWN" then
+			members[name] = i
+		end
+	end
+	self.members = members
+	for k, v in pairs(members) do
+		self:Print(k, v)
+	end
+end
+
+function CP:GROUP_INVITE_CONFIRMATION()
+	-- This event is called when another player requests to join the group, either
+	-- via interacting with the player or through the group finder, or when a party member
+	-- suggests an invite. We can use the API funcs in this callback to programatically get the info
+	-- we need on the player who is requesting/being requested to join.
+
+	local invite_guid = GetNextPendingInviteConfirmation()
+	local _, name, guid = GetInviteConfirmationInfo(invite_guid)
+	self:Print(name, guid)
 end
 
 --=========================================================================================
@@ -304,6 +324,10 @@ function CP:slashcommand_testbl()
 			self:Print(k, v)
 		end
 	end
+end
+
+function CP:test1()
+
 end
 
 function CP:slashcommand_dump_config()
