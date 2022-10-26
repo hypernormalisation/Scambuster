@@ -1,6 +1,6 @@
 ## Interface: 30400
 ## Title: Cutpurse
-## Notes: Scammer warnings with blocklists curated by realm discords.
+## Notes: Framework for protecting yourself from in-game scammers
 ## Author: Swedge
 ## Version: "@project-version@"
 ## DefaultState: enabled
@@ -18,6 +18,10 @@ Libs\AceEvent-3.0\AceEvent-3.0.xml
 Libs\AceGUI-3.0\AceGUI-3.0.xml
 Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
 Libs\AceConfig-3.0\AceConfig-3.0.xml
+
+locales\enUS.lua
+locales\frFR.lua
+locales\deDE.lua
 
 core.lua
 config.lua
