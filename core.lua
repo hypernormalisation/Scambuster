@@ -1,12 +1,13 @@
 --=========================================================================================
 -- Main module for Cutpurse
 --=========================================================================================
-local addon_name, cb = ...
-local CBL = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
+local addon_name, cp = ...
+local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 local LSM = LibStub("LibSharedMedia-3.0")
-cb.debug = true
+cp.debug = true
+local L = cp.L
 
-if cb.debug then CBL:Print("Parsing core.lua...") end
+if cp.debug then CP:Print("Parsing core.lua...") end
 
 local function printtab(t)
 	for k, v in pairs(t) do
@@ -14,10 +15,14 @@ local function printtab(t)
 	end
 end
 
+function CP:get_opts_db()
+	return self.db.global
+end
+
 --=========================================================================================
 -- The basic AceAddon structure
 --=========================================================================================
-function CBL:OnInitialize()
+function CP:OnInitialize()
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
@@ -63,7 +68,7 @@ function CBL:OnInitialize()
 
 end
 
-function CBL:OnEnable()
+function CP:OnEnable()
 	-- some basic post-load info to gather
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
@@ -77,22 +82,90 @@ function CBL:OnEnable()
 	self:load_cbl() -- constructed each time load/setting change
 
 	-- Enable the requisite events here
-	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-
+	local opts_db = self:get_opts_db()
+	if opts_db.use_mouseover_scan then
+		self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+	end
+	if opts_db.use_whisper_scan then
+		self:RegisterEvent("CHAT_MSG_WHISPER")
+	end
 	-- Welcome message if requested
 	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
 	end
+	self:RegisterEvent("CHAT_MSG_SYSTEM")
 end
 
-function CBL:OnDisable()
+function CP:OnDisable()
 	-- might not need this'un
+end
+
+
+--=========================================================================================
+-- WoW API callbacks
+--=========================================================================================
+function CP:UPDATE_MOUSEOVER_UNIT()
+	if not self:get_opts_db().use_mouseover_scan then return end
+	-- First check the mouseover is another player on same faction
+	local context = "mouseover"
+	local is_same_faction = self.player_faction == UnitFactionGroup(context)
+	if not is_same_faction or not UnitIsPlayer(context) or
+		UnitIsUnit("player", context) then return end
+	-- Check the player against cbl and update as necessary.
+	local name = UnitName(context)
+	if self:check_against_bls(name) then
+		self:update_pdi(context)
+	end
+	-- Placeholder for alerts.
+	if self.has_cbl and self:check_against_cbl(name) then
+		self:create_alert()
+	end
+end
+
+function CP:CHAT_MSG_WHISPER(
+		event_name, msg, player_name_realm,
+		_, _, player_name, _, _, _, _, _, line_id, player_guid
+	)
+	if not self:get_opts_db().use_whisper_scan then return end
+	local time_now = GetTime()
+	local on_ubl = self:check_against_ubl(player_name)
+	print(player_name)
+	print(on_ubl)
+	local on_cbl = self:check_against_cbl(player_name)
+	print(on_cbl)
+end
+
+function CP:PLAYER_TARGET_CHANGED()
+	if not self:is_target_eligible() and self:is_unit_eligible() then
+		return
+	end
+	local name = UnitName("target")
+	if self:check_against_bls() then
+		self:update_pdi("target")
+	end
+	-- Placeholder for alerts.
+end
+
+function CP:CHAT_MSG_SYSTEM(
+		event_name, msg, _, _, _, _, _, _, _, _, line_id
+	)
+	print('got a system msg')
+
+	-- Scan for join requests from the group finder. There is no associated event,
+	-- we have to parse the system message itself, which depends on locale.
+	if string.find(msg, L["has requested to join your group"]) then
+		print('got a group inv')
+
+		-- The name is always between [ ] parentheses, so extract it with a regex.
+		local name = msg:match("%[(%a+)%]")
+		self:Print(name)
+	end
 end
 
 --=========================================================================================
 -- funcs to load info
 --=========================================================================================
-function CBL:load_ubl()
+function CP:load_ubl()
 	-- Loads the user blocklist data.
 	if self.db.realm.user_blacklist == nil then
 		self.db.realm.user_blacklist = {}
@@ -100,7 +173,7 @@ function CBL:load_ubl()
 	self.ubl = self.db.realm.user_blacklist -- shorthand
 end
 
-function CBL:load_dynamic_info()
+function CP:load_dynamic_info()
 	-- Sets up the dynamic information on scammers the player's client 
 	-- has gathered from the realm db.
 	if self.db.realm.player_dynamic_info == nil then
@@ -110,7 +183,7 @@ function CBL:load_dynamic_info()
 	self.pdi = self.db.realm.player_dynamic_info
 end
 
-function CBL:get_valid_providers()
+function CP:get_valid_providers()
 	-- Verifies the format of providers and gets any valid realm data
 	self.valid_providers = {}
 	for provider, data in pairs(self.providers) do
@@ -127,7 +200,7 @@ function CBL:get_valid_providers()
 	end
 end
 
-function CBL:load_cbl()
+function CP:load_cbl()
 	-- Constructs the central blocklist from the valid providers.
 	self.cbl = {}
 	if self.valid_providers == nil or next(self.valid_providers) == nil then
@@ -154,17 +227,17 @@ end
 --=========================================================================================
 -- Register slashcommands
 --=========================================================================================
-function CBL:slashcommand_options(input, editbox)
+function CP:slashcommand_options(input, editbox)
 	local ACD = LibStub("AceConfigDialog-3.0")
 	ACD:Open(addon_name.."_Options")
 end
 
-function CBL:slashcommand_soundcheck()
+function CP:slashcommand_soundcheck()
 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
-function CBL:slashcommand_blocklist_target(reason)
+function CP:slashcommand_blocklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
 	if not self.is_target_eligible() then
@@ -179,7 +252,7 @@ function CBL:slashcommand_blocklist_target(reason)
 	self:add_to_ubl(t)
 end
 
-function CBL:slashcommand_blocklist_name(args)
+function CP:slashcommand_blocklist_name(args)
 	-- Places the name given on the ubl for the provided reason.
 	if args == "" then
 		self:Print("ERROR: command needs a name and a reason to list!")
@@ -201,7 +274,7 @@ function CBL:slashcommand_blocklist_name(args)
 	self:add_to_ubl(t)
 end
 
-function CBL:slashcommand_testbl()
+function CP:slashcommand_testbl()
 	self:Print(self.cbl)
 	local t = self.cbl
 	for name, bl_data in pairs(t) do
@@ -233,7 +306,7 @@ function CBL:slashcommand_testbl()
 	end
 end
 
-function CBL:slashcommand_dump_config()
+function CP:slashcommand_dump_config()
 	self:Print('Dumping options table:')
 	local t = self.conf
 	if type(t) == "table" then
@@ -243,50 +316,11 @@ function CBL:slashcommand_dump_config()
 	end
 end
 
---=========================================================================================
--- WoW API callbacks
---=========================================================================================
-function CBL:UPDATE_MOUSEOVER_UNIT()
-
-	-- First check the mouseover is another player on same faction
-	local context = "mouseover"
-	local is_same_faction = self.player_faction == UnitFactionGroup(context)
-	if not is_same_faction or not UnitIsPlayer(context) or
-		UnitIsUnit("player", context) then return end
-
-	-- Check the player against cbl and update as necessary.
-	local name = UnitName(context)
-	if self:check_against_bls(name) then
-		self:update_pdi(context)
-	end
-
-	-- Placeholder for alerts.
-	if self.has_cbl and self:check_against_cbl(name) then
-		self:create_alert()
-	end
-end
-
-function CBL:CHAT_MSG_WHISPER(event_name, msg, player_name_realm,
-	_, _, player_name, _, _, _, _, _, line_id, player_guid)
-	local time_now = GetTime()
-	local on_ubl = self:check_against_ubl(player_name)
-end
-
-function CBL:PLAYER_TARGET_CHANGED()
-	if not self:is_target_eligible() and self:is_unit_eligible() then
-		return
-	end
-	local name = UnitName("target")
-	if self:check_against_bls() then
-		self:update_pdi("target")
-	end
-	-- Placeholder for alerts.
-end
 
 --=========================================================================================
--- helper funcs for loading and altering blacklists
+-- helper funcs for loading and altering lists
 --=========================================================================================
-function CBL:update_pdi(unitId)
+function CP:update_pdi(unitId)
 	-- Function to update the player dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
 	-- unitId is the unit token e.g. "target", "mouseover", "partyN" etc
@@ -326,13 +360,13 @@ function CBL:update_pdi(unitId)
 	}
 end
 
-function CBL:add_to_ubl(t)
+function CP:add_to_ubl(t)
 	-- Function to add to the ubl. t should be a table with at least one 
 	-- of unitID or name, and always with reason.
 	local unitId = t.unitId
 	local name = t.name
 	local reason = t.reason
-	CBL:Print(name, unitId, reason)
+	CP:Print(name, unitId, reason)
 	if reason == nil then
 		self:Print("Error: need a reason to blacklist target")
 		return
@@ -363,7 +397,7 @@ function CBL:add_to_ubl(t)
 	}
 end
 
-function CBL:is_unit_eligible(unitId)
+function CP:is_unit_eligible(unitId)
 	-- Function to get info using the specified unit_id and
 	-- verify the unit in question is another same-faction player
 	if not UnitIsPlayer(unitId) and UnitIsUnit("player", unitId) then
@@ -376,7 +410,7 @@ function CBL:is_unit_eligible(unitId)
 	return true
 end
 
-function CBL:is_target_eligible()
+function CP:is_target_eligible()
 	if UnitIsUnit("player", "target") == false then
 		-- self:Print("Error: command needs a target to function!")
 		return false
@@ -384,26 +418,28 @@ function CBL:is_target_eligible()
 	return true
 end
 
-function CBL:check_against_ubl(player_name)
+function CP:check_against_ubl(player_name)
 	if self.ubl[player_name] == nil then
 		return false
 	end
 	return true
 end
 
-function CBL:check_against_cbl(player_name)
+function CP:check_against_cbl(player_name)
 	if self.cbl[player_name] == nil then
 		return false
 	end
 	return true
 end
 
-function CBL:check_against_bls(player_name)
+function CP:check_against_bls(player_name)
 	return self:check_against_ubl(player_name) or self:check_against_cbl(player_name)
 end
 
--- alert funcs
-function CBL:create_alert()
+--=========================================================================================
+-- Alert functionality
+--=========================================================================================
+function CP:create_alert()
 
 	-- Figure out if we're locked out.
 	if self:is_time_locked() then return end
@@ -413,7 +449,7 @@ function CBL:create_alert()
 
 end
 
-function CBL:is_time_locked()
+function CP:is_time_locked()
 	-- func to tell if we're time locked on alerts
 
 	local time_now = GetTime()
@@ -436,7 +472,7 @@ function CBL:is_time_locked()
 	return false
 end
 
-function CBL:play_alert_sound()
+function CP:play_alert_sound()
 	self:Print('playing alert')
 	-- if not db.b_play_alert_sound then return end
 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
@@ -444,4 +480,4 @@ function CBL:play_alert_sound()
 end
 
 
-if cb.debug then CBL:Print("Finished parsing core.lua.") end
+if cp.debug then CP:Print("Finished parsing core.lua.") end
