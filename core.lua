@@ -53,6 +53,7 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	self:RegisterChatCommand("testbl", "slashcommand_testbl")
+	self:RegisterChatCommand("test1", "test1")
 	self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
@@ -81,7 +82,7 @@ function CP:OnEnable()
 	self:get_valid_providers()
 	self:load_cbl() -- constructed each time load/setting change
 
-	-- Enable the requisite events here
+	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
 	if opts_db.use_mouseover_scan then
 		self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
@@ -97,10 +98,59 @@ function CP:OnEnable()
 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 end
 
-function CP:OnDisable()
-	-- might not need this'un
+--=========================================================================================
+-- Scanning and checking helper funcs.
+--=========================================================================================
+function CP:is_unit_eligible(unit_token)
+	-- Function to get info using the specified unit_token and
+	-- verify the unit in question is another same-faction player
+	if not UnitIsPlayer(unit_token) then
+		return false
+	end
+	if UnitIsUnit("player", unit_token) then
+		return false
+	end
+	local is_same_faction = self.player_faction == UnitFactionGroup(unit_token)
+	if not is_same_faction then
+		return false
+	end
+	return true
 end
 
+function CP:check_player(scan_context)
+	-- This function is called whenever we're scanning players.
+	-- scan_context passes the scan type.
+	local guid = UnitGUID(scan_context)
+	local name, realm = UnitName(scan_context)
+	if realm == nil then
+		realm = self.realm_name
+	end
+	self:Print(name, realm)
+
+	-- First check against curated lists
+	local result = self:check_against_CLs(name, realm, guid)
+	if result then
+		self:update_pdi(scan_context)
+		self:raise_alert(name, realm, guid, scan_context, "curated")
+		return
+	end
+	-- Then check against user lists
+	result = self:check_against_ULs(name, realm)
+	if result then
+		self:update_pdi(scan_context)
+		self:raise_alert(name, realm, guid, scan_context, "user")
+		return
+	end
+end
+
+function CP:check_against_CLs(name, realm, guid)
+end
+
+function CP:check_against_ULs(name, realm, guid)
+end
+
+function CP:raise_alert(name, realm, guid, scan_context, list_type)
+end
 
 --=========================================================================================
 -- WoW API callbacks
@@ -108,19 +158,20 @@ end
 function CP:UPDATE_MOUSEOVER_UNIT()
 	if not self:get_opts_db().use_mouseover_scan then return end
 	-- First check the mouseover is another player on same faction
-	local context = "mouseover"
-	local is_same_faction = self.player_faction == UnitFactionGroup(context)
-	if not is_same_faction or not UnitIsPlayer(context) or
-		UnitIsUnit("player", context) then return end
-	-- Check the player against cbl and update as necessary.
-	local name = UnitName(context)
-	if self:check_against_bls(name) then
-		self:update_pdi(context)
+	if not self:is_unit_eligible("mouseover") then
+		return
 	end
-	-- Placeholder for alerts.
-	if self.has_cbl and self:check_against_cbl(name) then
-		self:create_alert()
-	end
+	self:check_player("mouseover")
+
+	-- -- Check the player against cbl and update as necessary.
+	-- local name = UnitName(context)
+	-- if self:check_against_bls(name) then
+	-- 	self:update_pdi(context)
+	-- end
+	-- -- Placeholder for alerts.
+	-- if self.has_cbl and self:check_against_cbl(name) then
+	-- 	self:create_alert()
+	-- end
 end
 
 function CP:CHAT_MSG_WHISPER(
@@ -173,13 +224,21 @@ end
 
 function CP:GROUP_INVITE_CONFIRMATION()
 	-- This event is called when another player requests to join the group, either
-	-- via interacting with the player or through the group finder, or when a party member
+	-- via interacting with the player directly or through the group finder, or when a party member
 	-- suggests an invite. We can use the API funcs in this callback to programatically get the info
 	-- we need on the player who is requesting/being requested to join.
-
 	local invite_guid = GetNextPendingInviteConfirmation()
 	local _, name, guid = GetInviteConfirmationInfo(invite_guid)
 	self:Print(name, guid)
+end
+
+function CP:test1()
+	print('running')
+	local invite_guid = GetNextPendingInviteConfirmation()
+	RespondToInviteConfirmation(invite_guid, false)
+	local f = _G["StaticPopup1Button1"]
+	self:Print(f.GetName())
+	f:Click()
 end
 
 --=========================================================================================
@@ -326,9 +385,7 @@ function CP:slashcommand_testbl()
 	end
 end
 
-function CP:test1()
 
-end
 
 function CP:slashcommand_dump_config()
 	self:Print('Dumping options table:')
@@ -419,19 +476,6 @@ function CP:add_to_ubl(t)
 		reason = reason,
 		ignore = false -- override any ignore settings
 	}
-end
-
-function CP:is_unit_eligible(unitId)
-	-- Function to get info using the specified unit_id and
-	-- verify the unit in question is another same-faction player
-	if not UnitIsPlayer(unitId) and UnitIsUnit("player", unitId) then
-		return false
-	end
-	local is_same_faction = self.player_faction == UnitFactionGroup(unitId)
-	if not is_same_faction then
-		return false
-	end
-	return true
 end
 
 function CP:is_target_eligible()
