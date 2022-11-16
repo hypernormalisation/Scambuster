@@ -1,3 +1,6 @@
+local addon_name, cp = ...
+if not cp.add_test_list then return end
+
 -- This module contains a test list for debugging purposes.
 
 local golemagg_list = {
