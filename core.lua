@@ -6,6 +6,7 @@ local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP) 
 local LSM = LibStub("LibSharedMedia-3.0")
 cp.debug = true
+cp.add_test_list = true
 local L = cp.L
 if cp.debug then CP:Print("Parsing core.lua...") end
 
@@ -148,7 +149,7 @@ end
 function CP:construct_lists()
 	-- Function called on addon enable to construct the list data.
 	self:Print("GOING TO CONSTRUCT LISTS NOW")
-	
+
 end
 
 --=========================================================================================
@@ -202,7 +203,7 @@ end
 
 function CP:check_against_CLs(unit_guid)
 	-- This function checks against the curated lists.
-	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
 	if realm == nil then
 		realm = self.realm_name
 	end
