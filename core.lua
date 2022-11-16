@@ -6,9 +6,38 @@ local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 local LSM = LibStub("LibSharedMedia-3.0")
 cp.debug = true
 local L = cp.L
-
 if cp.debug then CP:Print("Parsing core.lua...") end
 
+
+-- Load some relevant wow API and lua globals into the local namespace for efficiency
+local GetInviteConfirmationInfo = GetInviteConfirmationInfo
+local GetNextPendingInviteConfirmation = GetNextPendingInviteConfirmation
+local GetUnitName = GetUnitName
+local GetTime = GetTime
+local GetPlayerInfoByGUID = GetPlayerInfoByGUID
+local GetRealmName = GetRealmName
+local IsInGroup = IsInGroup
+local IsInRaid = IsInRaid
+local PlaySoundFile = PlaySoundFile
+local UnitFactionGroup = UnitFactionGroup
+local UnitIsPlayer = UnitIsPlayer
+local UnitIsUnit = UnitIsUnit
+local UnitGUID = UnitGUID
+local UnitName = UnitName
+
+local UnitLevel = UnitLevel
+local UnitRace = UnitRace
+local UnitClass = UnitClass
+local GetGuildInfo = GetGuildInfo
+
+local pairs = pairs
+local print = print
+local select = select
+
+
+--=========================================================================================
+-- Helper funcs
+--=========================================================================================
 local function printtab(t)
 	for k, v in pairs(t) do
 		print(k, v)
@@ -59,13 +88,13 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
-	-- Construct the central blocklist if one is present.
-	self.has_cbl = false
-	self.ignored_players = {}
-	if self.db.realm.user_blacklist == nil then
-		self.db.realm.user_blacklist = {}
-	end
-	self.ubl = self.db.realm.user_blacklist -- shorthand
+	-- -- Construct the central blocklist if one is present.
+	-- self.has_cbl = false
+	-- self.ignored_players = {}
+	-- if self.db.realm.user_blacklist == nil then
+	-- 	self.db.realm.user_blacklist = {}
+	-- end
+	-- self.ubl = self.db.realm.user_blacklist -- shorthand
 
 end
 
@@ -77,10 +106,12 @@ function CP:OnEnable()
 	-- Load necessary data.
 	-- We do this here so extensions can init their
 	-- provider blocklists before we construct the cbl.
-	self:load_dynamic_info()
-	self:load_ubl()
-	self:get_valid_providers()
-	self:load_cbl() -- constructed each time load/setting change
+	self:construct_lists()
+
+	-- self:load_dynamic_info()
+	-- self:load_ubl()
+	-- self:get_valid_providers()
+	-- self:load_cbl() -- constructed each time load/setting change
 
 	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
@@ -96,6 +127,20 @@ function CP:OnEnable()
 	end
 	self:RegisterEvent("GROUP_ROSTER_UPDATE")
 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+end
+
+--=========================================================================================
+-- Funcs to register lists with Cutpurse, for use in addons that extend Cutpurse.
+--=========================================================================================
+function CP:register_curated_list(data)
+end
+
+function CP:register_user_list(data)
+end
+
+function CP:construct_lists()
+	-- Function called on addon enable to construct the list data.
+
 end
 
 --=========================================================================================
@@ -117,39 +162,57 @@ function CP:is_unit_eligible(unit_token)
 	return true
 end
 
-function CP:check_player(scan_context)
-	-- This function is called whenever we're scanning players.
-	-- scan_context passes the scan type.
-	local guid = UnitGUID(scan_context)
-	local name, realm = UnitName(scan_context)
-	if realm == nil then
-		realm = self.realm_name
-	end
-	self:Print(name, realm)
+function CP:check_unit(unit_token, unit_guid, scan_context)
+	-- Checks a unit against the lists.
+	-- Should only be called after we've confirmed the unit is a 
+	--  same-side faction unit who is not the player.
+	-- Requires one of unit_token or unit_guid.
+	-- The scan_context is required to tell the alerts system what scan
+	--  registered the unit. If a unit_token is given, it defaults to that.
+	--  If it is not given, as for whispers or invite
+	--  confirmations, it should be passed manually.
+
+	-- Internally set a scan context and the target guid
+	-- to avoid multiple API calls and passing lots of arguments
+	unit_guid = unit_guid or UnitGUID(unit_token)
+	self.current_unit_guid = unit_guid
+	self.current_scan_context = scan_context or unit_token
 
 	-- First check against curated lists
-	local result = self:check_against_CLs(name, realm, guid)
+	local result = self:check_against_CLs()
 	if result then
-		self:update_pdi(scan_context)
-		self:raise_alert(name, realm, guid, scan_context, "curated")
+		self:raise_alert("curated")
 		return
 	end
 	-- Then check against user lists
-	result = self:check_against_ULs(name, realm)
+	result = self:check_against_ULs()
 	if result then
-		self:update_pdi(scan_context)
-		self:raise_alert(name, realm, guid, scan_context, "user")
+		self:raise_alert("user")
 		return
 	end
 end
 
-function CP:check_against_CLs(name, realm, guid)
+function CP:check_against_CLs(unit_guid)
+	-- This function checks against the curated lists.
+	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	if realm == nil then
+		realm = self.realm_name
+	end
+	self.current_unit_name = name
+	self.current_realm_name = realm
+	
+	-- We make provisions for either just the name being recorded, or both the name
+	-- and the guid being recorded.
+
 end
 
-function CP:check_against_ULs(name, realm, guid)
+function CP:check_against_ULs(guid)
+	-- This function checks against the user lists.
 end
 
-function CP:raise_alert(name, realm, guid, scan_context, list_type)
+function CP:raise_alert(list_type)
+	-- First update the player dynamic info.
+	-- self:update_pdi(scan_context)
 end
 
 --=========================================================================================
@@ -157,21 +220,8 @@ end
 --=========================================================================================
 function CP:UPDATE_MOUSEOVER_UNIT()
 	if not self:get_opts_db().use_mouseover_scan then return end
-	-- First check the mouseover is another player on same faction
-	if not self:is_unit_eligible("mouseover") then
-		return
-	end
-	self:check_player("mouseover")
-
-	-- -- Check the player against cbl and update as necessary.
-	-- local name = UnitName(context)
-	-- if self:check_against_bls(name) then
-	-- 	self:update_pdi(context)
-	-- end
-	-- -- Placeholder for alerts.
-	-- if self.has_cbl and self:check_against_cbl(name) then
-	-- 	self:create_alert()
-	-- end
+	if not self:is_unit_eligible("mouseover") then return end
+	self:check_unit("mouseover")
 end
 
 function CP:CHAT_MSG_WHISPER(
@@ -179,23 +229,12 @@ function CP:CHAT_MSG_WHISPER(
 		_, _, player_name, _, _, _, _, _, line_id, player_guid
 	)
 	if not self:get_opts_db().use_whisper_scan then return end
-	local time_now = GetTime()
-	local on_ubl = self:check_against_ubl(player_name)
-	print(player_name)
-	print(on_ubl)
-	local on_cbl = self:check_against_cbl(player_name)
-	print(on_cbl)
+
 end
 
 function CP:PLAYER_TARGET_CHANGED()
-	if not self:is_target_eligible() and self:is_unit_eligible() then
-		return
-	end
-	local name = UnitName("target")
-	if self:check_against_bls() then
-		self:update_pdi("target")
-	end
-	-- Placeholder for alerts.
+	if not self:is_unit_eligible("target") then return end
+	self:check_unit("target")
 end
 
 function CP:GROUP_ROSTER_UPDATE()
@@ -233,12 +272,12 @@ function CP:GROUP_INVITE_CONFIRMATION()
 end
 
 function CP:test1()
-	print('running')
-	local invite_guid = GetNextPendingInviteConfirmation()
-	RespondToInviteConfirmation(invite_guid, false)
-	local f = _G["StaticPopup1Button1"]
-	self:Print(f.GetName())
-	f:Click()
+	-- print('running')
+	-- local invite_guid = GetNextPendingInviteConfirmation()
+	-- RespondToInviteConfirmation(invite_guid, false)
+	-- local f = _G["StaticPopup1Button1"]
+	-- self:Print(f.GetName())
+	-- f:Click()
 end
 
 --=========================================================================================
@@ -319,7 +358,7 @@ end
 function CP:slashcommand_blocklist_target(reason)
 	-- Places the current target on the user blocklist for the provided reason.
 	-- Must provide a reason!
-	if not self.is_target_eligible() then
+	if not self.is_unit_eligible("target") then
 		self:Print("Error: command needs a target to function!")
 		return
 	end
