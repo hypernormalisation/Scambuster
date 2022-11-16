@@ -25,5 +25,4 @@ locales\deDE.lua
 
 core.lua
 config.lua
-bl_modules\bl_golemagg_eu_disc.lua
-bl_modules\bl_main.lua
+test_list.lua
