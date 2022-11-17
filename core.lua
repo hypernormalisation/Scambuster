@@ -48,6 +48,10 @@ function CP:get_opts_db()
 	return self.db.global
 end
 
+function CP:get_provider_settings()
+	return self.db.global.provider_settings
+end
+
 --=========================================================================================
 -- The basic AceAddon structure
 --=========================================================================================
@@ -91,6 +95,13 @@ function CP:OnInitialize()
 	self.unprocessed_curated_lists = {}
 	self.ucl_counter = 0
 	self.unprocessed_user_lists = {}
+	self.curated_db_local = {}
+	self.curated_db_global = {}
+
+	if self.db.global.provider_settings == nil then
+		self.db.global.provider_settings = {}
+	end
+
 	-- -- Construct the central blocklist if one is present.
 	-- self.has_cbl = false
 	-- self.ignored_players = {}
@@ -110,7 +121,7 @@ function CP:OnEnable()
 	-- We do this here so extensions can init their
 	-- provider blocklists before we construct the cbl.
 	self.callbacks:Fire("CUTPURSE_LIST_CONSTRUCTION")
-	self:construct_lists()
+	self:construct_dbs()
 
 	-- self:load_dynamic_info()
 	-- self:load_ubl()
@@ -146,11 +157,91 @@ end
 function CP:register_user_list(data)
 end
 
-function CP:construct_lists()
-	-- Function called on addon enable to construct the list data.
+function CP:construct_dbs()
+	-- This function builds the relevant dbs
 	self:Print("GOING TO CONSTRUCT LISTS NOW")
+	local pdb = self:get_provider_settings()
+	local ucl = self.unprocessed_curated_lists
+	self.curated_db_local = {}
+	self.curated_db_global = {}
 
+	for _, new_list in pairs(ucl) do
+		local n = new_list.name
+		if pdb[n] == nil then
+			pdb[n] = {enabled = true}
+			self:add_curated_list_to_db(new_list)
+		else
+			if pdb[n].enabled then
+				self:add_curated_list_to_db(new_list)
+			end
+		end
+	end
 end
+
+function CP:add_curated_list_to_db(l)
+	local list_name = l.name
+	local provider = l.provider
+	for realm, realm_dict in pairs(l.realm_data) do
+
+		for _, case_data in pairs(realm_dict) do
+			local player_name = case_data.last_known_name
+			local full_name = string.format("%s-%s", player_name, realm)
+
+			-- Always add to the global db regardless of realm.
+			self:add_to_target_db(
+				self.curated_db_global,
+				full_name,
+				case_data,
+				list_name
+			)
+
+			-- Add to the local db if the realm matches the player's home realm.
+			if realm == self.realm_name then 
+				self:add_to_target_db(
+					self.curated_db_local,
+					player_name,
+					case_data,
+					list_name
+				)
+			end
+		end
+	end
+end
+
+function CP:add_to_target_db(target, key, case_data, list_name)
+	-- key is name or name-realm
+	-- If no provider has given data on this player yet, make a new entry
+	if target[key] == nil then
+		target[key] = {
+			guid = case_data.last_known_guid,
+			previous_aliases = case_data.previous_aliases,
+			reports = {
+				provider = {
+					reason = case_data.reason,
+					evidence = case_data.evidence,
+				}
+			}
+		}
+	-- If there is already data, add the relevant fields
+	else
+		local current_data = target[key]
+		-- First aliases
+		for alias, old_guid in pairs(case_data.previous_aliases) do
+			if target[alias] == nil then
+				target[alias] = old_guid
+			elseif old_guid ~= 0 then
+				current_data.previous_aliases[alias] = old_guid
+			end
+		end
+		-- Now report data
+		current_data.reports[list_name] = {
+			reason = case_data.reason,
+			evidence = case_data.evidence
+		}
+	end
+end
+
+
 
 --=========================================================================================
 -- Scanning and checking helper funcs.
@@ -201,7 +292,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	end
 end
 
-function CP:check_against_CLs(unit_guid)
+function CP:check_against_CLs()
 	-- This function checks against the curated lists.
 	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
 	if realm == nil then
@@ -215,7 +306,7 @@ function CP:check_against_CLs(unit_guid)
 
 end
 
-function CP:check_against_ULs(guid)
+function CP:check_against_ULs()
 	-- This function checks against the user lists.
 end
 
