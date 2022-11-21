@@ -86,13 +86,13 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	-- self:RegisterChatCommand("testbl", "slashcommand_testbl")
-	-- self:RegisterChatCommand("test1", "test1")
+	self:RegisterChatCommand("test1", "test1")
 	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	-- self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 	-- self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
 	-- self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
 
-	self.unprocessed_curated_lists = {}
+	self.raw_curated_lists = {}
 	self.ucl_counter = 0
 	self.unprocessed_user_lists = {}
 	self.curated_db_local = {}
@@ -151,17 +151,18 @@ end
 function CP:register_curated_list(data)
 	self:Print("CALL TO REGISTER A LIST")
 	self.ucl_counter = self.ucl_counter + 1
-	self.unprocessed_curated_lists[self.ucl_counter] = data
+	self.raw_curated_lists[self.ucl_counter] = data
 end
 
 function CP:register_user_list(data)
+	-- Might not need this one
 end
 
 function CP:construct_dbs()
 	-- This function builds the relevant dbs
 	self:Print("GOING TO CONSTRUCT LISTS NOW")
 	local pdb = self:get_provider_settings()
-	local ucl = self.unprocessed_curated_lists
+	local ucl = self.raw_curated_lists
 	self.curated_db_local = {}
 	self.curated_db_global = {}
 
@@ -182,11 +183,9 @@ function CP:add_curated_list_to_db(l)
 	local list_name = l.name
 	local provider = l.provider
 	for realm, realm_dict in pairs(l.realm_data) do
-
 		for _, case_data in pairs(realm_dict) do
 			local player_name = case_data.last_known_name
 			local full_name = string.format("%s-%s", player_name, realm)
-
 			-- Always add to the global db regardless of realm.
 			self:add_to_target_db(
 				self.curated_db_global,
@@ -194,7 +193,6 @@ function CP:add_curated_list_to_db(l)
 				case_data,
 				list_name
 			)
-
 			-- Add to the local db if the realm matches the player's home realm.
 			if realm == self.realm_name then 
 				self:add_to_target_db(
@@ -212,9 +210,11 @@ function CP:add_to_target_db(target, key, case_data, list_name)
 	-- key is name or name-realm
 	-- If no provider has given data on this player yet, make a new entry
 	if target[key] == nil then
+		local pa = case_data.previous_aliases or {}
+		self:Print(pa)
 		target[key] = {
 			guid = case_data.last_known_guid,
-			previous_aliases = case_data.previous_aliases,
+			previous_aliases = pa,
 			reports = {
 				provider = {
 					reason = case_data.reason,
@@ -224,15 +224,22 @@ function CP:add_to_target_db(target, key, case_data, list_name)
 		}
 	-- If there is already data, add the relevant fields
 	else
+		print("already got data for name:" .. key)
 		local current_data = target[key]
-		-- First aliases
-		for alias, old_guid in pairs(case_data.previous_aliases) do
-			if target[alias] == nil then
-				target[alias] = old_guid
-			elseif old_guid ~= 0 then
-				current_data.previous_aliases[alias] = old_guid
+		-- First previous aliases, if there are any.
+		-- if case_data.previous_aliases then
+		local current_aliases = current_data.previous_aliases
+		self:Print(current_aliases)
+		if case_data.previous_aliases ~= nil then
+			for alias, old_guid in pairs(case_data.previous_aliases) do
+				if current_aliases[alias] == nil then
+					current_aliases[alias] = old_guid
+				elseif old_guid ~= 0 then
+					current_aliases[alias] = old_guid
+				end
 			end
 		end
+		-- end
 		-- Now report data
 		current_data.reports[list_name] = {
 			reason = case_data.reason,
@@ -378,6 +385,10 @@ function CP:test1()
 	-- local f = _G["StaticPopup1Button1"]
 	-- self:Print(f.GetName())
 	-- f:Click()
+	print(self.curated_db_local)
+	for k, v in pairs(self.curated_db_local) do
+		self:Print(k, v)
+	end
 end
 
 --=========================================================================================
