@@ -47,7 +47,6 @@ local golemagg_list2 = {
         },
     }
 }
-
 local test_bl_2 = {
     name = "Orcs Anonymous Blocklist",
     provider = "ZugZug",
@@ -58,6 +57,7 @@ local test_bl_2 = {
     }
 }
 
+-- Register both the lists with Cutpurse, emulating extension addons.
 local CP = LibStub("AceAddon-3.0"):GetAddon("Cutpurse")
 CP.RegisterCallback(
     CP, "CUTPURSE_LIST_CONSTRUCTION",
@@ -66,7 +66,3 @@ CP.RegisterCallback(
         CP:register_curated_list(test_bl_2)
     end
 )
--- CP.RegisterCallback(
---     CP, "CUTPURSE_LIST_CONSTRUCTION",
---     function() CP:register_curated_list(test_bl_2) end
--- )
