@@ -17,6 +17,7 @@ CP.defaults = {
 		-- Scanning settings
 		use_mouseover_scan = true,
 		use_whisper_scan = true,
+		use_target_scan = true,
 		use_group_request_scan = true,
     },
 }
@@ -86,7 +87,22 @@ CP.options = {
 					CP:UnregisterEvent("CHAT_MSG_WHISPER")
 				end
 			end,
-		}
+		},
+		use_target_scan = {
+			order = 3.4,
+			type = "toggle",
+			name = "Target",
+			desc = "If enabled, will check any players you target against the database.",
+			get = "opts_getter",
+			set = function(_, value)
+				CP.db.global.use_target_scan = value
+				if value then
+					CP:RegisterEvent("PLAYER_TARGET_CHANGED")
+				else
+					CP:UnregisterEvent("PLAYER_TARGET_CHANGED")
+				end
+			end
+		},
 	}
 }
 

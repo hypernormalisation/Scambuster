@@ -19,13 +19,25 @@ local golemagg_list = {
         evidence = "some_other_url_again",
     },
 }
+
+local ptr_list_1 = {
+    [2] = {
+        last_known_name = "Swedger",
+        last_known_guid = "Player-4904-0079C620",
+        reason = "Raid Scam",
+        evidence = "some_other_url",
+    },
+}
+for k, v in pairs(golemagg_list) do ptr_list_1[k] = v end
+
 local test_bl_1 = {
     name = "Golemagg EU Discord Blocklist",
     provider = "Golemagg EU",
     description = "Golemagg EU Discord",
     url = "some_url",
     realm_data = {
-        Golemagg = golemagg_list
+        Golemagg = golemagg_list,
+        ["Classic PTR Realm 1"] = ptr_list_1,
     }
 }
 
@@ -53,7 +65,8 @@ local test_bl_2 = {
     description = "List of orcs who didn't zug.",
     url = "zug_url",
     realm_data = {
-        Golemagg = golemagg_list2
+        Golemagg = golemagg_list2,
+        ["Classic PTR Realm 1"] = golemagg_list,
     }
 }
 
