@@ -21,6 +21,7 @@ local IsInGroup = IsInGroup
 local IsInRaid = IsInRaid
 local PlaySoundFile = PlaySoundFile
 
+local UnitInBattleground = UnitInBattleground
 local UnitFactionGroup = UnitFactionGroup
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsUnit = UnitIsUnit
@@ -34,6 +35,22 @@ local GetGuildInfo = GetGuildInfo
 local pairs = pairs
 local print = print
 local select = select
+local type = type
+local tostring = tostring
+
+local function tab_dump(o)
+	if type(o) == 'table' then
+	   local s = '{ '
+	   for k,v in pairs(o) do
+		  if type(k) ~= 'number' then k = '"'..k..'"' end
+		  s = s .. '['..k..'] = ' .. tab_dump(v) .. ','
+	   end
+	   return s .. '} '
+	else
+	   return tostring(o)
+	end
+ end
+
 
 --=========================================================================================
 -- Helper funcs
@@ -86,7 +103,8 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	-- self:RegisterChatCommand("testbl", "slashcommand_testbl")
-	self:RegisterChatCommand("test1", "test1")
+	self:RegisterChatCommand("test_local", "test_local")
+	self:RegisterChatCommand("test_global", "test_global")
 	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	-- self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 	-- self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
@@ -135,6 +153,9 @@ function CP:OnEnable()
 	end
 	if opts_db.use_whisper_scan then
 		self:RegisterEvent("CHAT_MSG_WHISPER")
+	end
+	if opts_db.use_target_scan then
+		self:RegisterEvent("PLAYER_TARGET_CHANGED")
 	end
 	-- Welcome message if requested
 	if self.conf.welcome_message then
@@ -194,7 +215,7 @@ function CP:add_curated_list_to_db(l)
 				list_name
 			)
 			-- Add to the local db if the realm matches the player's home realm.
-			if realm == self.realm_name then 
+			if realm == self.realm_name then
 				self:add_to_target_db(
 					self.curated_db_local,
 					player_name,
@@ -284,6 +305,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	unit_guid = unit_guid or UnitGUID(unit_token)
 	self.current_unit_guid = unit_guid
 	self.current_scan_context = scan_context or unit_token
+	self.in_bg = UnitInBattleground("player")
 
 	-- First check against curated lists
 	local result = self:check_against_CLs()
@@ -292,11 +314,11 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		return
 	end
 	-- Then check against user lists
-	result = self:check_against_ULs()
-	if result then
-		self:raise_alert("user")
-		return
-	end
+	-- result = self:check_against_ULs()
+	-- if result then
+	-- 	self:raise_alert("user")
+	-- 	return
+	-- end
 end
 
 function CP:check_against_CLs()
@@ -307,10 +329,20 @@ function CP:check_against_CLs()
 	end
 	self.current_unit_name = name
 	self.current_realm_name = realm
-	
+
 	-- We make provisions for either just the name being recorded, or both the name
 	-- and the guid being recorded.
+	if self.in_bg then
+		return -- maybe we have some option to disable in BG
+	end
 
+	if self.curated_db_local[name] == nil then return false end
+	local t = self.curated_db_local[name]
+	self.partial_match = true
+	if self.current_unit_guid == t.guid then
+		self.partial_match = false
+	end
+	return true
 end
 
 function CP:check_against_ULs()
@@ -320,6 +352,20 @@ end
 function CP:raise_alert(list_type)
 	-- First update the player dynamic info.
 	-- self:update_pdi(scan_context)
+	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
+	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
+	self:Print("--   Partial match : "..tostring(self.partial_match))
+
+	-- Construct and push the alert
+
+	-- reset the internal containers
+	-- not strictly necessary but if we assign one only 
+	-- in a conditional it might be hard to debug
+	self.current_unit_name = nil
+	self.current_realm_name = nil
+	self.partial_match = nil
+	self.current_unit_guid = nil
+	self.current_scan_context = nil
 end
 
 --=========================================================================================
@@ -340,7 +386,9 @@ function CP:CHAT_MSG_WHISPER(
 end
 
 function CP:PLAYER_TARGET_CHANGED()
+	if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
+	self:Print("Target name: "..tostring(UnitName("target")))
 	self:check_unit("target")
 end
 
@@ -378,18 +426,20 @@ function CP:GROUP_INVITE_CONFIRMATION()
 	self:Print(name, guid)
 end
 
-function CP:test1()
+function CP:test_local()
 	-- print('running')
 	-- local invite_guid = GetNextPendingInviteConfirmation()
 	-- RespondToInviteConfirmation(invite_guid, false)
 	-- local f = _G["StaticPopup1Button1"]
 	-- self:Print(f.GetName())
 	-- f:Click()
-	print(self.curated_db_local)
-	for k, v in pairs(self.curated_db_local) do
-		self:Print(k, v)
-	end
+	print(tab_dump(self.curated_db_local))
 end
+
+function CP:test_global()
+	print(tab_dump(self.curated_db_global))
+end
+
 
 --=========================================================================================
 -- funcs to load info
