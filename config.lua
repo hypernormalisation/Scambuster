@@ -19,6 +19,7 @@ CP.defaults = {
 		use_whisper_scan = true,
 		use_target_scan = true,
 		use_group_request_scan = true,
+		alert_lockout_seconds = 900,
     },
 }
 
@@ -103,6 +104,21 @@ CP.options = {
 				end
 			end
 		},
+
+		alert_lockout_seconds = {
+			order = 4.0,
+			type = "range",
+			name = "Alert Lockout (s)",
+			desc = "The period during which the addon will not generate alerts for "..
+			"a given player after one has been generated.",
+			min = 0,
+			max = 10000,
+			softMax = 3600,
+			bigStep = 10,
+			get = "opts_getter",
+			set = "opts_setter,"
+		},
+
 	}
 }
 
