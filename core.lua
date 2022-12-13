@@ -20,6 +20,7 @@ local GetRealmName = GetRealmName
 local IsInGroup = IsInGroup
 local IsInRaid = IsInRaid
 local PlaySoundFile = PlaySoundFile
+local GetNumGroupMembers = GetNumGroupMembers
 
 local UnitInBattleground = UnitInBattleground
 local UnitFactionGroup = UnitFactionGroup
@@ -69,6 +70,10 @@ function CP:get_provider_settings()
 	return self.db.global.provider_settings
 end
 
+function CP:get_PDI()
+	return self.db.global.pdi
+end
+
 --=========================================================================================
 -- The basic AceAddon structure
 --=========================================================================================
@@ -105,6 +110,9 @@ function CP:OnInitialize()
 	-- self:RegisterChatCommand("testbl", "slashcommand_testbl")
 	self:RegisterChatCommand("test_local", "test_local")
 	self:RegisterChatCommand("test_global", "test_global")
+	self:RegisterChatCommand("test_pdi", "test_pdi")
+	self:RegisterChatCommand("clear_pdi", "clear_pdi")
+
 	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	-- self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
 	-- self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
@@ -120,6 +128,16 @@ function CP:OnInitialize()
 		self.db.global.provider_settings = {}
 	end
 
+	-- Containers for the alerts system.
+	self.alert_counter = 0
+	self.pending_alerts = {}
+	self.locked_players = {}
+
+	-- Ensure PDI
+	if not self.db.global.pdi then
+		self.db.global.pdi = {}
+	end
+
 	-- -- Construct the central blocklist if one is present.
 	-- self.has_cbl = false
 	-- self.ignored_players = {}
@@ -133,6 +151,7 @@ end
 function CP:OnEnable()
 	-- some basic post-load info to gather
 	self.realm_name = GetRealmName()
+	self:Print("realm name = " .. tostring(self.realm_name))
 	self.player_faction = UnitFactionGroup("player")
 
 	-- Load necessary data.
@@ -272,7 +291,7 @@ end
 
 
 --=========================================================================================
--- Scanning and checking helper funcs.
+-- Scanning and checking functionality.
 --=========================================================================================
 function CP:is_unit_eligible(unit_token)
 	-- Function to get info using the specified unit_token and
@@ -310,25 +329,29 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- First check against curated lists
 	local result = self:check_against_CLs()
 	if result then
-		self:raise_alert("curated")
+		self:raise_alert()
 		return
 	end
 	-- Then check against user lists
 	-- result = self:check_against_ULs()
 	-- if result then
-	-- 	self:raise_alert("user")
+	-- 	self:raise_alert()
 	-- 	return
 	-- end
+
+	CP:clear_scan_vars()
+
 end
 
 function CP:check_against_CLs()
 	-- This function checks against the curated lists.
 	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
-	if realm == nil then
+	if realm == "" then
 		realm = self.realm_name
 	end
 	self.current_unit_name = name
 	self.current_realm_name = realm
+	self.current_full_name = name.."-"..realm
 
 	-- We make provisions for either just the name being recorded, or both the name
 	-- and the guid being recorded.
@@ -336,12 +359,16 @@ function CP:check_against_CLs()
 		return -- maybe we have some option to disable in BG
 	end
 
-	if self.curated_db_local[name] == nil then return false end
+	if self.curated_db_local[name] == nil then
+		return false
+	end
+
 	local t = self.curated_db_local[name]
 	self.partial_match = true
 	if self.current_unit_guid == t.guid then
 		self.partial_match = false
 	end
+	self.current_alert_privilege = "curated"
 	return true
 end
 
@@ -349,23 +376,67 @@ function CP:check_against_ULs()
 	-- This function checks against the user lists.
 end
 
-function CP:raise_alert(list_type)
-	-- First update the player dynamic info.
-	-- self:update_pdi(scan_context)
+function CP:raise_alert()
+	self:update_pdi()
 	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
 	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
 	self:Print("--   Partial match : "..tostring(self.partial_match))
 
 	-- Construct and push the alert
+	local t = self.curated_db_global[self.current_full_name]
+	local reason = nil
+	local new_t = {
+		name = self.current_full_name,
 
+	}
+
+end
+
+function CP:update_pdi()
+	-- Function to update the player dynamic information table.
+	-- when we encounter a scammer in-game and can access their information.
+	local name = self.current_unit_name
+	local realm = self.current_realm_name
+	local index = self.current_full_name
+	local t = self:get_PDI()
+
+	if t[index] == nil then
+		t[index] = {}
+	end
+	local token = self.current_scan_context
+	local class = UnitClass(token)
+	local level = UnitLevel(token)
+	local race = UnitRace(token)
+	local guild = GetGuildInfo(token)
+	local guid = UnitGUID(token)
+
+	if t[index] == nil then
+		self:Print(string.format('Registering new info for %s', index))
+	else
+		self:Print(string.format('Updating info for %s', index))
+	end
+
+	t[index] = {
+		class = class,
+		level = level,
+		guild = guild,
+		race = race,
+		guid = guid,
+		last_seen = time()
+	}
+end
+
+function CP:clear_scan_vars()
 	-- reset the internal containers
 	-- not strictly necessary but if we assign one only 
 	-- in a conditional it might be hard to debug
 	self.current_unit_name = nil
 	self.current_realm_name = nil
+	self.current_full_name = nil
 	self.partial_match = nil
 	self.current_unit_guid = nil
 	self.current_scan_context = nil
+	self.current_alert_privilege = nil
 end
 
 --=========================================================================================
@@ -440,6 +511,13 @@ function CP:test_global()
 	print(tab_dump(self.curated_db_global))
 end
 
+function CP:test_pdi()
+	print(tab_dump(self:get_PDI()))
+end
+
+function CP:clear_pdi()
+	self.db.global.pdi = {}
+end
 
 --=========================================================================================
 -- funcs to load info
@@ -601,45 +679,7 @@ end
 --=========================================================================================
 -- helper funcs for loading and altering lists
 --=========================================================================================
-function CP:update_pdi(unitId)
-	-- Function to update the player dynamic information table.
-	-- when we encounter a scammer in-game and can access their information.
-	-- unitId is the unit token e.g. "target", "mouseover", "partyN" etc
-	local name = UnitName(unitId)
-	if name == nil then
-		self:Print("ERROR: name from API not valid.")
-		return
-	end
-	if self.pdi[name] == nil then
-		self.pdi[name] = {}
-	end
-	local last_seen = self.pdi[name]["last_seen"]
-	-- -- Only update non last_seen data once every 10 mins
-	-- if last_seen ~= nil and (time() - last_seen < 600) then
-	-- 	self:Print('locking update, too recent')
-	-- 	self.pdi[name]["last_seen"] = time()
-	-- 	return
-	-- end
 
-	local class = UnitClass(unitId)
-	local level = UnitLevel(unitId)
-	local race = UnitRace(unitId)
-	local guild = GetGuildInfo(unitId)
-	local guid = UnitGUID(unitId)
-	if self.pdi[name] == nil then
-		self:Print(string.format('Registering new info for %s', name))
-	else
-		self:Print(string.format('Updating info for %s', name))
-	end
-	self.pdi[name] = {
-		class = class,
-		level = level,
-		guild = guild,
-		race = race,
-		guid = guid,
-		last_seen = time()
-	}
-end
 
 function CP:add_to_ubl(t)
 	-- Function to add to the ubl. t should be a table with at least one 
