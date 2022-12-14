@@ -108,9 +108,9 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	-- self:RegisterChatCommand("testbl", "slashcommand_testbl")
-	self:RegisterChatCommand("test_local", "test_local")
-	self:RegisterChatCommand("test_global", "test_global")
-	self:RegisterChatCommand("test_pdi", "test_pdi")
+	self:RegisterChatCommand("dump_local", "dump_local")
+	self:RegisterChatCommand("dump_global", "dump_global")
+	self:RegisterChatCommand("dump_pdi", "dump_pdi")
 	self:RegisterChatCommand("clear_pdi", "clear_pdi")
 
 	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
@@ -378,18 +378,30 @@ end
 
 function CP:raise_alert()
 	self:update_pdi()
+
+	-- Figure out if we're still on lockout for this player
+	local pdi = self:get_PDI()
+	local last_alerted = pdi[self.current_full_name]["last_alerted"]
+	local d = self:get_opts_db().alert_lockout_seconds
+	if last_alerted then
+		if GetTime() < d + last_alerted then
+			local time_until = d + last_alerted - GetTime()
+			self:Print(string.format("locked out for another %f seconds", time_until))
+			return
+		end
+	end
+	pdi[self.current_full_name]["last_alerted"] = GetTime()
+
+	-- Construct and push the alert
 	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
 	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
 	self:Print("--   Partial match : "..tostring(self.partial_match))
 
-	-- Construct and push the alert
 	local t = self.curated_db_global[self.current_full_name]
 	local reason = nil
 	local new_t = {
 		name = self.current_full_name,
-
 	}
-
 end
 
 function CP:update_pdi()
@@ -401,7 +413,10 @@ function CP:update_pdi()
 	local t = self:get_PDI()
 
 	if t[index] == nil then
+		self:Print(string.format('Registering new info for %s', index))
 		t[index] = {}
+	else
+		self:Print(string.format('Updating info for %s', index))
 	end
 	local token = self.current_scan_context
 	local class = UnitClass(token)
@@ -410,11 +425,7 @@ function CP:update_pdi()
 	local guild = GetGuildInfo(token)
 	local guid = UnitGUID(token)
 
-	if t[index] == nil then
-		self:Print(string.format('Registering new info for %s', index))
-	else
-		self:Print(string.format('Updating info for %s', index))
-	end
+	local last_alerted = t[index]["last_alerted"] or false
 
 	t[index] = {
 		class = class,
@@ -422,7 +433,8 @@ function CP:update_pdi()
 		guild = guild,
 		race = race,
 		guid = guid,
-		last_seen = time()
+		last_seen = time(),
+		last_alerted = last_alerted
 	}
 end
 
@@ -459,7 +471,7 @@ end
 function CP:PLAYER_TARGET_CHANGED()
 	if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
-	self:Print("Target name: "..tostring(UnitName("target")))
+	-- self:Print("Target name: "..tostring(UnitName("target")))
 	self:check_unit("target")
 end
 
@@ -497,90 +509,6 @@ function CP:GROUP_INVITE_CONFIRMATION()
 	self:Print(name, guid)
 end
 
-function CP:test_local()
-	-- print('running')
-	-- local invite_guid = GetNextPendingInviteConfirmation()
-	-- RespondToInviteConfirmation(invite_guid, false)
-	-- local f = _G["StaticPopup1Button1"]
-	-- self:Print(f.GetName())
-	-- f:Click()
-	print(tab_dump(self.curated_db_local))
-end
-
-function CP:test_global()
-	print(tab_dump(self.curated_db_global))
-end
-
-function CP:test_pdi()
-	print(tab_dump(self:get_PDI()))
-end
-
-function CP:clear_pdi()
-	self.db.global.pdi = {}
-end
-
---=========================================================================================
--- funcs to load info
---=========================================================================================
--- function CP:load_ubl()
--- 	-- Loads the user blocklist data.
--- 	if self.db.realm.user_blacklist == nil then
--- 		self.db.realm.user_blacklist = {}
--- 	end
--- 	self.ubl = self.db.realm.user_blacklist -- shorthand
--- end
-
--- function CP:load_dynamic_info()
--- 	-- Sets up the dynamic information on scammers the player's client 
--- 	-- has gathered from the realm db.
--- 	if self.db.realm.player_dynamic_info == nil then
--- 		self.db.realm.player_dynamic_info = {}
--- 	end
--- 	-- A shorthand for this realm's dynamic player data.
--- 	self.pdi = self.db.realm.player_dynamic_info
--- end
-
--- function CP:get_valid_providers()
--- 	-- Verifies the format of providers and gets any valid realm data
--- 	self.valid_providers = {}
--- 	for provider, data in pairs(self.providers) do
--- 		if data == nil or data.realms == nil then
--- 			self:Print(
--- 				string.format("Provider %s is not properly configured!")
--- 			)
--- 		else
--- 			local r = data.realms[self.realm_name]
--- 			if r ~= nil and next(r) ~= nil then
--- 				self.valid_providers[provider] = r
--- 			end
--- 		end
--- 	end
--- end
-
--- function CP:load_cbl()
--- 	-- Constructs the central blocklist from the valid providers.
--- 	self.cbl = {}
--- 	if self.valid_providers == nil or next(self.valid_providers) == nil then
--- 		self:Print(string.format("INFO: no central realm data exists on %s.", self.realm_name))
--- 		return
--- 	end
--- 	self.has_cbl = true
-
--- 	-- TO-DO: options for enabled/disabled providers, handle provider precedence here.
-
--- 	-- Assemble cbl, append provider to info.
--- 	for provider, data in pairs(self.valid_providers) do
--- 		for player, pdata in pairs(data) do
--- 			self.cbl[player] = {
--- 				provider = provider,
--- 				reason = pdata.reason,
--- 				evidence = pdata.evidence,
--- 				ignore = false, -- TO-DO: load this from settings
--- 			}
--- 		end
--- 	end
--- end
-
 --=========================================================================================
 -- Register slashcommands
 --=========================================================================================
@@ -589,10 +517,26 @@ function CP:slashcommand_options(input, editbox)
 	ACD:Open(addon_name.."_Options")
 end
 
--- function CP:slashcommand_soundcheck()
--- 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
--- 	PlaySoundFile(sound_file)
--- end
+function CP:dump_local()
+	print(tab_dump(self.curated_db_local))
+end
+
+function CP:dump_global()
+	print(tab_dump(self.curated_db_global))
+end
+
+function CP:dump_pdi()
+	print(tab_dump(self:get_PDI()))
+end
+
+function CP:clear_pdi()
+	self.db.global.pdi = {}
+end
+
+function CP:slashcommand_soundcheck()
+	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
+	PlaySoundFile(sound_file)
+end
 
 -- function CP:slashcommand_blocklist_target(reason)
 -- 	-- Places the current target on the user blocklist for the provided reason.
@@ -631,40 +575,6 @@ end
 -- 	self:add_to_ubl(t)
 -- end
 
--- function CP:slashcommand_testbl()
--- 	self:Print(self.cbl)
--- 	local t = self.cbl
--- 	for name, bl_data in pairs(t) do
--- 		self:Print("cbl:")
--- 		print('------------------------')
--- 		self:Print(name, bl_data)
--- 		for k, v in pairs(bl_data) do
--- 			self:Print(k, v)
--- 		end
--- 	end
--- 	local t = self.ubl
--- 	for name, bl_data in pairs(t) do
--- 		print('------------------------')
--- 		self:Print("ubl:")
--- 		self:Print(name, bl_data)
--- 		for k, v in pairs(bl_data) do
--- 			self:Print(k, v)
--- 		end
--- 	end
--- 	self:Print(self.pdi)
--- 	local t = self.pdi
--- 	for name, bl_data in pairs(t) do
--- 		print('------------------------')
--- 		self:Print("pdi:")
--- 		self:Print(name, bl_data)
--- 		for k, v in pairs(bl_data) do
--- 			self:Print(k, v)
--- 		end
--- 	end
--- end
-
-
-
 -- function CP:slashcommand_dump_config()
 -- 	self:Print('Dumping options table:')
 -- 	local t = self.conf
@@ -675,12 +585,9 @@ end
 -- 	end
 -- end
 
-
 --=========================================================================================
 -- helper funcs for loading and altering lists
 --=========================================================================================
-
-
 function CP:add_to_ubl(t)
 	-- Function to add to the ubl. t should be a table with at least one 
 	-- of unitID or name, and always with reason.
@@ -717,24 +624,6 @@ function CP:add_to_ubl(t)
 		ignore = false -- override any ignore settings
 	}
 end
-
--- function CP:check_against_ubl(player_name)
--- 	if self.ubl[player_name] == nil then
--- 		return false
--- 	end
--- 	return true
--- end
-
--- function CP:check_against_cbl(player_name)
--- 	if self.cbl[player_name] == nil then
--- 		return false
--- 	end
--- 	return true
--- end
-
--- function CP:check_against_bls(player_name)
--- 	return self:check_against_ubl(player_name) or self:check_against_cbl(player_name)
--- end
 
 --=========================================================================================
 -- Alert functionality
