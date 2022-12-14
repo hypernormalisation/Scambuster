@@ -113,10 +113,11 @@ CP.options = {
 			"a given player after one has been generated.",
 			min = 0,
 			max = 10000,
+			softMin = 0,
 			softMax = 3600,
 			bigStep = 10,
 			get = "opts_getter",
-			set = "opts_setter,"
+			set = "opts_setter",
 		},
 
 	}
