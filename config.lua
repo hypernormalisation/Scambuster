@@ -19,8 +19,11 @@ CP.defaults = {
 	profile = {
 		welcome_message = true,
         -- alert settings
-        b_play_alert_sound = true,
+        use_chat_alert = true,
+		use_gui_alert = true,
+		b_play_alert_sound = true,
 		alert_sound = "Cutpurse: Criminal Scum!",
+
         grace_period_s = 10,
 		-- Scanning settings
 		use_mouseover_scan = true,
