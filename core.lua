@@ -148,14 +148,6 @@ function CP:OnInitialize()
 		self.db.realm.stats.n_warnings = 0
 	end
 
-	-- -- Construct the central blocklist if one is present.
-	-- self.has_cbl = false
-	-- self.ignored_players = {}
-	-- if self.db.realm.user_blacklist == nil then
-	-- 	self.db.realm.user_blacklist = {}
-	-- end
-	-- self.ubl = self.db.realm.user_blacklist -- shorthand
-
 end
 
 function CP:OnEnable()
@@ -412,6 +404,10 @@ function CP:raise_alert()
 	local new_t = {
 		name = self.current_full_name,
 	}
+	
+	-- Handle stats counters
+	self.db.global.stats.n_warnings = self.db.global.stats.n_warnings + 1
+	self.db.realm.stats.n_warnings = self.db.realm.stats.n_warnings + 1
 end
 
 function CP:update_pdi()
