@@ -9,6 +9,14 @@ local L = cp.L
 -- Default addon settings
 CP.defaults = {
 	global = {
+		n_alerts = 0,
+		udi = {},
+		provider_settings = {},
+	},
+	realm = {
+		n_alerts = 0,
+	},
+	profile = {
 		welcome_message = true,
         -- alert settings
         b_play_alert_sound = true,
@@ -67,7 +75,7 @@ CP.options = {
 			desc = "If enabled, will check any mouseover players against the blocklists.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.global.use_mouseover_scan = value
+				CP.db.profile.use_mouseover_scan = value
 				if value then
 					CP:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 				else
@@ -81,7 +89,7 @@ CP.options = {
 			desc = "If enabled, will check any players whispering you against the blocklists.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.global.use_whisper_scan = value
+				CP.db.profile.use_whisper_scan = value
 				if value then
 					CP:RegisterEvent("CHAT_MSG_WHISPER")
 				else
@@ -96,7 +104,7 @@ CP.options = {
 			desc = "If enabled, will check any players you target against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.global.use_target_scan = value
+				CP.db.profile.use_target_scan = value
 				if value then
 					CP:RegisterEvent("PLAYER_TARGET_CHANGED")
 				else
@@ -125,11 +133,11 @@ CP.options = {
 
 -- Generic getters and setters
 function CP:opts_getter(info)
-	return self.db.global[info[#info]]
+	return self.db.profile[info[#info]]
 end
 
 function CP:opts_setter(info, value)
-	self.db.global[info[#info]] = value
+	self.db.profile[info[#info]] = value
 end
 
 if cp.debug then CP:Print("Finished parsing config.lua.") end
