@@ -52,6 +52,10 @@ local function tab_dump(o)
 	end
  end
 
+function CP:get_class_color(class)
+	local t = RAID_CLASS_COLORS[class]
+end
+
 
 --=========================================================================================
 -- Helper funcs
@@ -206,6 +210,7 @@ function CP:add_curated_list_to_db(l)
 			-- Always add to the global db regardless of realm.
 			self:add_to_target_db(
 				self.curated_db_global,
+				provider,
 				full_name,
 				case_data,
 				list_name
@@ -214,6 +219,7 @@ function CP:add_curated_list_to_db(l)
 			if realm == self.realm_name then
 				self:add_to_target_db(
 					self.curated_db_local,
+					provider,
 					player_name,
 					case_data,
 					list_name
@@ -223,7 +229,7 @@ function CP:add_curated_list_to_db(l)
 	end
 end
 
-function CP:add_to_target_db(target, key, case_data, list_name)
+function CP:add_to_target_db(target, provider, key, case_data, list_name)
 	-- key is name or name-realm
 	-- If no provider has given data on this player yet, make a new entry
 	if target[key] == nil then
@@ -233,7 +239,7 @@ function CP:add_to_target_db(target, key, case_data, list_name)
 			guid = case_data.last_known_guid,
 			previous_aliases = pa,
 			reports = {
-				provider = {
+				[provider] = {
 					reason = case_data.reason,
 					evidence = case_data.evidence,
 				}
@@ -380,7 +386,7 @@ function CP:raise_alert()
 	if last_alerted then
 		if GetTime() < d + last_alerted then
 			local time_until = d + last_alerted - GetTime()
-			self:Print(string.format("locked out for another %f seconds", time_until))
+			-- self:Print(string.format("locked out for another %f seconds", time_until))
 			return
 		end
 	end
@@ -392,12 +398,13 @@ function CP:raise_alert()
 	-- self:Print("--   Partial match : "..tostring(self.partial_match))
 
 	local t = self.curated_db_global[self.current_full_name]
-	local reason = nil
+	local reports = t['reports']
 	local new_t = {
 		name = self.current_full_name,
 		guid = self.current_unit_guid,
 		context = self.current_scan_context,
 		partial = self.partial_match,
+		reports = reports
 	}
 	-- Handle stats counters
 	self.db.global.n_alerts = self.db.global.n_alerts + 1
@@ -422,16 +429,26 @@ end
 function CP:display_chat_alert(t)
 	-- Function to generate and print an alert.
 	self:Print("Flagged character detected!")
-	local m1  = "  - Name: "..t.name 
-	local m12 = "  - Guid: "..t.guid
-	local m2 = "  Name and guid match records."
+	local m1  = " Name: "..t.name 
+	local m12 = " Guid: "..t.guid
+	local m2 = "  - name and guid match records"
 	if t.partial then
-		m2 = "  Partial match on name."
+		m2 = "  - partial match on name only"
 	end
-	local m3 = "  - Picked up in scan: " .. t.context
-	print(m1)
-	print(m2)
+	local m3 = " Picked up in scan: " .. t.context
+
 	print(m3)
+	print(m1)
+	print(m12)
+	print(m2)
+	-- print(tab_dump(t.reports))
+	for provider, report in pairs(t.reports) do
+		local reason = report.reason
+		local evidence = report.evidence
+		print(string.format("Provider %s has listed this player for:", provider))
+		print(" reason : " .. reason)
+		print(" case url : " .. evidence)
+	end
 end
 
 function CP:play_alert_sound()
