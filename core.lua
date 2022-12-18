@@ -133,9 +133,19 @@ function CP:OnInitialize()
 	self.pending_alerts = {}
 	self.locked_players = {}
 
-	-- Ensure PDI
+	-- Ensure player dynamic information table
 	if not self.db.global.pdi then
 		self.db.global.pdi = {}
+	end
+
+	-- Ensure stats tables and counters
+	if not self.db.global.stats then
+		self.db.global.stats = {}
+		self.db.global.stats.n_warnings = 0
+	end
+	if not self.db.realm.stats then
+		self.db.realm.stats = {}
+		self.db.realm.stats.n_warnings = 0
 	end
 
 	-- -- Construct the central blocklist if one is present.
