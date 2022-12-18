@@ -353,37 +353,6 @@ function CP:check_against_ULs()
 	-- This function checks against the user lists.
 end
 
-function CP:raise_alert()
-	self:update_udi()
-
-	-- Figure out if we're still on lockout for this player
-	local udi = self:get_UDI()
-	local last_alerted = udi[self.current_full_name]["last_alerted"]
-	local d = self:get_opts_db().alert_lockout_seconds
-	if last_alerted then
-		if GetTime() < d + last_alerted then
-			local time_until = d + last_alerted - GetTime()
-			self:Print(string.format("locked out for another %f seconds", time_until))
-			return
-		end
-	end
-	udi[self.current_full_name]["last_alerted"] = GetTime()
-
-	-- Construct and push the alert
-	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
-	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
-	self:Print("--   Partial match : "..tostring(self.partial_match))
-
-	local t = self.curated_db_global[self.current_full_name]
-	local reason = nil
-	local new_t = {
-		name = self.current_full_name,
-	}
-
-	-- Handle stats counters
-	self.db.global.n_alerts = self.db.global.n_alerts + 1
-	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
-end
 
 function CP:update_udi()
 	-- Function to update the player dynamic information table.
@@ -430,6 +399,62 @@ function CP:clear_scan_vars()
 	self.current_unit_guid = nil
 	self.current_scan_context = nil
 	self.current_alert_privilege = nil
+end
+
+--=========================================================================================
+-- Alert functionality
+--=========================================================================================
+function CP:raise_alert()
+	self:update_udi()
+
+	-- Figure out if we're still on lockout for this player
+	local udi = self:get_UDI()
+	local last_alerted = udi[self.current_full_name]["last_alerted"]
+	local d = self:get_opts_db().alert_lockout_seconds
+	if last_alerted then
+		if GetTime() < d + last_alerted then
+			local time_until = d + last_alerted - GetTime()
+			self:Print(string.format("locked out for another %f seconds", time_until))
+			return
+		end
+	end
+	udi[self.current_full_name]["last_alerted"] = GetTime()
+
+	-- Construct and push the alert
+	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
+	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
+	self:Print("--   Partial match : "..tostring(self.partial_match))
+
+	local t = self.curated_db_global[self.current_full_name]
+	local reason = nil
+	local new_t = {
+		name = self.current_full_name,
+		guid = self.current_unit_guid,
+		context = self.current_scan_context,
+		partial = self.partial_match,
+	}
+	-- Handle stats counters
+	self.db.global.n_alerts = self.db.global.n_alerts + 1
+	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
+	self:post_alert(new_t)
+end
+
+function CP:post_alert(t)
+	-- Func to take a generated alert and post it, triggering the configured
+	-- alerts behaviour.
+	self.pending_alerts[self.alert_counter] = t
+	self.alert_counter = self.alert_counter + 1
+	local db = self:get_opts_db()
+	if db.b_play_alert_sound then
+		self:play_alert_sound()
+	end
+end
+
+function CP:play_alert_sound()
+	local k = self:get_opts_db().alert_sound
+	self:Print('playing alert, sound key = '..tostring(k))
+	local sound_file = LSM:Fetch('sound', k)
+	PlaySoundFile(sound_file)
 end
 
 --=========================================================================================
@@ -614,15 +639,7 @@ function CP:add_to_ubl(t)
 	}
 end
 
---=========================================================================================
--- Alert functionality
---=========================================================================================
--- function CP:play_alert_sound()
--- 	self:Print('playing alert')
--- 	-- if not db.b_play_alert_sound then return end
--- 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
--- 	PlaySoundFile(sound_file)
--- end
+
 
 
 if cp.debug then CP:Print("Finished parsing core.lua.") end
