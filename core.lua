@@ -228,7 +228,7 @@ function CP:add_to_target_db(target, key, case_data, list_name)
 	-- If no provider has given data on this player yet, make a new entry
 	if target[key] == nil then
 		local pa = case_data.previous_aliases or {}
-		self:Print(pa)
+		-- self:Print(pa)
 		target[key] = {
 			guid = case_data.last_known_guid,
 			previous_aliases = pa,
@@ -241,12 +241,12 @@ function CP:add_to_target_db(target, key, case_data, list_name)
 		}
 	-- If there is already data, add the relevant fields
 	else
-		print("already got data for name:" .. key)
+		-- print("already got data for name:" .. key)
 		local current_data = target[key]
 		-- First previous aliases, if there are any.
 		-- if case_data.previous_aliases then
 		local current_aliases = current_data.previous_aliases
-		self:Print(current_aliases)
+		-- self:Print(current_aliases)
 		if case_data.previous_aliases ~= nil then
 			for alias, old_guid in pairs(case_data.previous_aliases) do
 				if current_aliases[alias] == nil then
@@ -351,41 +351,7 @@ end
 
 function CP:check_against_ULs()
 	-- This function checks against the user lists.
-end
-
-
-function CP:update_udi()
-	-- Function to update the player dynamic information table.
-	-- when we encounter a scammer in-game and can access their information.
-	local name = self.current_unit_name
-	local realm = self.current_realm_name
-	local index = self.current_full_name
-	local t = self:get_UDI()
-
-	if t[index] == nil then
-		self:Print(string.format('Registering new info for %s', index))
-		t[index] = {}
-	else
-		self:Print(string.format('Updating info for %s', index))
-	end
-	local token = self.current_scan_context
-	local class = UnitClass(token)
-	local level = UnitLevel(token)
-	local race = UnitRace(token)
-	local guild = GetGuildInfo(token)
-	local guid = UnitGUID(token)
-
-	local last_alerted = t[index]["last_alerted"] or false
-
-	t[index] = {
-		class = class,
-		level = level,
-		guild = guild,
-		race = race,
-		guid = guid,
-		last_seen = time(),
-		last_alerted = last_alerted
-	}
+	-- WILL BE IMPLEMENTED WHEN USER LISTS ARE SUPPORTED
 end
 
 function CP:clear_scan_vars()
@@ -421,9 +387,9 @@ function CP:raise_alert()
 	udi[self.current_full_name]["last_alerted"] = GetTime()
 
 	-- Construct and push the alert
-	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
-	self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
-	self:Print("--   Partial match : "..tostring(self.partial_match))
+	-- self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
+	-- self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
+	-- self:Print("--   Partial match : "..tostring(self.partial_match))
 
 	local t = self.curated_db_global[self.current_full_name]
 	local reason = nil
@@ -448,13 +414,68 @@ function CP:post_alert(t)
 	if db.b_play_alert_sound then
 		self:play_alert_sound()
 	end
+	if db.use_chat_alert then
+		self:display_chat_alert(t)
+	end
+end
+
+function CP:display_chat_alert(t)
+	-- Function to generate and print an alert.
+	self:Print("Flagged character detected!")
+	local m1  = "  - Name: "..t.name 
+	local m12 = "  - Guid: "..t.guid
+	local m2 = "  Name and guid match records."
+	if t.partial then
+		m2 = "  Partial match on name."
+	end
+	local m3 = "  - Picked up in scan: " .. t.context
+	print(m1)
+	print(m2)
+	print(m3)
 end
 
 function CP:play_alert_sound()
 	local k = self:get_opts_db().alert_sound
-	self:Print('playing alert, sound key = '..tostring(k))
+	-- self:Print('playing alert, sound key = '..tostring(k))
 	local sound_file = LSM:Fetch('sound', k)
 	PlaySoundFile(sound_file)
+end
+
+--=========================================================================================
+-- User Dynamic Information funcs
+--=========================================================================================
+function CP:update_udi()
+	-- Function to update the player dynamic information table.
+	-- when we encounter a scammer in-game and can access their information.
+	local name = self.current_unit_name
+	local realm = self.current_realm_name
+	local index = self.current_full_name
+	local t = self:get_UDI()
+
+	if t[index] == nil then
+		-- self:Print(string.format('Registering new info for %s', index))
+		t[index] = {}
+	else
+		-- self:Print(string.format('Updating info for %s', index))
+	end
+	local token = self.current_scan_context
+	local class = UnitClass(token)
+	local level = UnitLevel(token)
+	local race = UnitRace(token)
+	local guild = GetGuildInfo(token)
+	local guid = UnitGUID(token)
+
+	local last_alerted = t[index]["last_alerted"] or false
+
+	t[index] = {
+		class = class,
+		level = level,
+		guild = guild,
+		race = race,
+		guid = guid,
+		last_seen = GetTime(),
+		last_alerted = last_alerted
+	}
 end
 
 --=========================================================================================
@@ -471,13 +492,12 @@ function CP:CHAT_MSG_WHISPER(
 		_, _, player_name, _, _, _, _, _, line_id, player_guid
 	)
 	if not self:get_opts_db().use_whisper_scan then return end
-
+	self:check_unit(nil, player_guid, "whisper")
 end
 
 function CP:PLAYER_TARGET_CHANGED()
 	if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
-	-- self:Print("Target name: "..tostring(UnitName("target")))
 	self:check_unit("target")
 end
 
@@ -551,53 +571,6 @@ function CP:test1()
 	self:Print("N alerts global = " .. tostring(self.db.global.n_alerts))
 	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
 end
-
--- function CP:slashcommand_blocklist_target(reason)
--- 	-- Places the current target on the user blocklist for the provided reason.
--- 	-- Must provide a reason!
--- 	if not self.is_unit_eligible("target") then
--- 		self:Print("Error: command needs a target to function!")
--- 		return
--- 	end
--- 	local t = {
--- 		unitId = "target",
--- 		reason = reason,
--- 	}
--- 	print(t.unitId, "<"..t.reason..">")
--- 	self:add_to_ubl(t)
--- end
-
--- function CP:slashcommand_blocklist_name(args)
--- 	-- Places the name given on the ubl for the provided reason.
--- 	if args == "" then
--- 		self:Print("ERROR: command needs a name and a reason to list!")
--- 		self:Print("e.g: /blocklist_name Player Some reason to list")
--- 		return
--- 	end
--- 	local name, next_pos = self:GetArgs(args, 1)
--- 	name = name:gsub("^%l", string.upper)
--- 	if next_pos == 1e9 then
--- 		self:Print("ERROR: you gave only a name, give name and reason to list.")
--- 		self:Print("e.g: /blocklist_name Player Some reason to list")
--- 		return
--- 	end
--- 	local reason = args:sub(next_pos)
--- 	local t = {
--- 		name = name,
--- 		reason = reason
--- 	}
--- 	self:add_to_ubl(t)
--- end
-
--- function CP:slashcommand_dump_config()
--- 	self:Print('Dumping options table:')
--- 	local t = self.conf
--- 	if type(t) == "table" then
--- 		for i, v in pairs(t) do
--- 			print(i, v)
--- 		end
--- 	end
--- end
 
 --=========================================================================================
 -- helper funcs for loading and altering lists
