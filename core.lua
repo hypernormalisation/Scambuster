@@ -153,6 +153,12 @@ function CP:OnEnable()
 	end
 	self:RegisterEvent("GROUP_ROSTER_UPDATE")
 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+
+	-- If in a group, run the group scan callback.
+	if IsInGroup() then
+		self:GROUP_ROSTER_UPDATE()
+	end
+
 end
 
 --=========================================================================================
@@ -464,13 +470,15 @@ function CP:GROUP_ROSTER_UPDATE()
 	end
 	for i = 1, n do
 		local name = GetUnitName(unit..i, true)
+		local guid = UnitGUID(unit..i)
 		if name and name ~= "UNKNOWN" then
-			members[name] = i
+			members[name] = guid
 		end
 	end
 	self.members = members
-	for k, v in pairs(members) do
-		self:Print(k, v)
+	for name, guid in pairs(members) do
+		self:Print(name, guid)
+		self:check_unit(nil, guid, "group")
 	end
 end
 
@@ -482,6 +490,7 @@ function CP:GROUP_INVITE_CONFIRMATION()
 	local invite_guid = GetNextPendingInviteConfirmation()
 	local _, name, guid = GetInviteConfirmationInfo(invite_guid)
 	self:Print(name, guid)
+	self:check_unit(nil, guid, "invite_confirmation")
 end
 
 --=========================================================================================
