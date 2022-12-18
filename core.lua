@@ -56,22 +56,16 @@ local function tab_dump(o)
 --=========================================================================================
 -- Helper funcs
 --=========================================================================================
-local function printtab(t)
-	for k, v in pairs(t) do
-		print(k, v)
-	end
-end
-
 function CP:get_opts_db()
-	return self.db.global
+	return self.db.profile
 end
 
 function CP:get_provider_settings()
 	return self.db.global.provider_settings
 end
 
-function CP:get_PDI()
-	return self.db.global.pdi
+function CP:get_UDI()
+	return self.db.global.udi
 end
 
 --=========================================================================================
@@ -107,11 +101,11 @@ function CP:OnInitialize()
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
-	-- self:RegisterChatCommand("testbl", "slashcommand_testbl")
 	self:RegisterChatCommand("dump_local", "dump_local")
 	self:RegisterChatCommand("dump_global", "dump_global")
-	self:RegisterChatCommand("dump_pdi", "dump_pdi")
-	self:RegisterChatCommand("clear_pdi", "clear_pdi")
+	self:RegisterChatCommand("dump_udi", "dump_udi")
+	self:RegisterChatCommand("clear_udi", "clear_udi")
+	self:RegisterChatCommand("test1", "test1")
 
 	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
 	-- self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
@@ -124,29 +118,9 @@ function CP:OnInitialize()
 	self.curated_db_local = {}
 	self.curated_db_global = {}
 
-	if self.db.global.provider_settings == nil then
-		self.db.global.provider_settings = {}
-	end
-
 	-- Containers for the alerts system.
-	self.alert_counter = 0
+	self.alert_counter = 0  -- just for index handling on temp alerts list
 	self.pending_alerts = {}
-	self.locked_players = {}
-
-	-- Ensure player dynamic information table
-	if not self.db.global.pdi then
-		self.db.global.pdi = {}
-	end
-
-	-- Ensure stats tables and counters
-	if not self.db.global.stats then
-		self.db.global.stats = {}
-		self.db.global.stats.n_warnings = 0
-	end
-	if not self.db.realm.stats then
-		self.db.realm.stats = {}
-		self.db.realm.stats.n_warnings = 0
-	end
 
 end
 
@@ -161,11 +135,6 @@ function CP:OnEnable()
 	-- provider blocklists before we construct the cbl.
 	self.callbacks:Fire("CUTPURSE_LIST_CONSTRUCTION")
 	self:construct_dbs()
-
-	-- self:load_dynamic_info()
-	-- self:load_ubl()
-	-- self:get_valid_providers()
-	-- self:load_cbl() -- constructed each time load/setting change
 
 	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
@@ -379,11 +348,11 @@ function CP:check_against_ULs()
 end
 
 function CP:raise_alert()
-	self:update_pdi()
+	self:update_udi()
 
 	-- Figure out if we're still on lockout for this player
-	local pdi = self:get_PDI()
-	local last_alerted = pdi[self.current_full_name]["last_alerted"]
+	local udi = self:get_UDI()
+	local last_alerted = udi[self.current_full_name]["last_alerted"]
 	local d = self:get_opts_db().alert_lockout_seconds
 	if last_alerted then
 		if GetTime() < d + last_alerted then
@@ -392,7 +361,7 @@ function CP:raise_alert()
 			return
 		end
 	end
-	pdi[self.current_full_name]["last_alerted"] = GetTime()
+	udi[self.current_full_name]["last_alerted"] = GetTime()
 
 	-- Construct and push the alert
 	self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
@@ -404,19 +373,19 @@ function CP:raise_alert()
 	local new_t = {
 		name = self.current_full_name,
 	}
-	
+
 	-- Handle stats counters
-	self.db.global.stats.n_warnings = self.db.global.stats.n_warnings + 1
-	self.db.realm.stats.n_warnings = self.db.realm.stats.n_warnings + 1
+	self.db.global.n_alerts = self.db.global.n_alerts + 1
+	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
 end
 
-function CP:update_pdi()
+function CP:update_udi()
 	-- Function to update the player dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
 	local name = self.current_unit_name
 	local realm = self.current_realm_name
 	local index = self.current_full_name
-	local t = self:get_PDI()
+	local t = self:get_UDI()
 
 	if t[index] == nil then
 		self:Print(string.format('Registering new info for %s', index))
@@ -531,17 +500,22 @@ function CP:dump_global()
 	print(tab_dump(self.curated_db_global))
 end
 
-function CP:dump_pdi()
-	print(tab_dump(self:get_PDI()))
+function CP:dump_udi()
+	print(tab_dump(self:get_UDI()))
 end
 
-function CP:clear_pdi()
-	self.db.global.pdi = {}
+function CP:clear_udi()
+	self.db.global.udi = {}
 end
 
 function CP:slashcommand_soundcheck()
 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
 	PlaySoundFile(sound_file)
+end
+
+function CP:test1()
+	self:Print("N alerts global = " .. tostring(self.db.global.n_alerts))
+	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
 end
 
 -- function CP:slashcommand_blocklist_target(reason)
@@ -616,7 +590,7 @@ function CP:add_to_ubl(t)
 			return
 		end
 		-- Record player's dynamic information.
-		self:update_pdi(unitId)
+		self:update_udi(unitId)
 	end
 	-- check if on blacklist already
 	if self.ubl[name] ~= nil then
@@ -634,39 +608,6 @@ end
 --=========================================================================================
 -- Alert functionality
 --=========================================================================================
--- function CP:create_alert()
-
--- 	-- Figure out if we're locked out.
--- 	if self:is_time_locked() then return end
-
--- 	-- Notify with the required methods.
--- 	self:play_alert_sound()
-
--- end
-
--- function CP:is_time_locked()
--- 	-- func to tell if we're time locked on alerts
-
--- 	local time_now = GetTime()
--- 	if self.time_since_laste == nil then
--- 		self.time_last_alert = time_now
--- 		return true
--- 	end
--- 	print('time_now = ' .. time_now)
--- 	print('Time of last alert = ' .. self.time_last_alert)
--- 	local time_since_last = time_now - self.time_last_alert
--- 	print('Time since last alert = ' .. time_since_last)
--- 	-- print('grace period = ', db.grace_period_s)
--- 	if time_since_last < self.conf.grace_period_s then
--- 		print('locked out of alert')
--- 		return true
--- 	end
-
--- 	-- else set the new time and return false
--- 	self.time_last_alert = time_now
--- 	return false
--- end
-
 -- function CP:play_alert_sound()
 -- 	self:Print('playing alert')
 -- 	-- if not db.b_play_alert_sound then return end
