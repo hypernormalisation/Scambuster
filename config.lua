@@ -45,6 +45,8 @@ CP.options = {
 	name = "Cutpurse",
 	handler = CP,
 	args = {
+
+		-- General
 		welcome_message = {
 			type = "toggle",
 			order = 1.1,
@@ -162,7 +164,6 @@ CP.options = {
 			type = "description",
 			name = "To avoid spam, Cutpurse will only generate warnings for a given scammer once per a lockout period, configurable below.",
 		},
-
 		alert_lockout_seconds = {
 			order = 3.91,
 			type = "range",
@@ -178,6 +179,7 @@ CP.options = {
 			set = "opts_setter",
 		},
 
+		-- Alerts settings
 		alerts_header = {
 			order = 4.0,
 			type = "header",
