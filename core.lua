@@ -246,12 +246,14 @@ function CP:add_to_target_db(target, provider, key, case_data, list_name)
 		local pa = case_data.previous_aliases or {}
 		-- self:Print(pa)
 		target[key] = {
-			guid = case_data.last_known_guid,
+			-- guid = case_data.last_known_guid or false,
 			previous_aliases = pa,
 			reports = {
 				[provider] = {
+					last_known_guid = case_data.last_known_guid or false,
 					reason = case_data.reason,
 					evidence = case_data.evidence,
+					category = case_data.category or false,
 				}
 			}
 		}
@@ -259,10 +261,7 @@ function CP:add_to_target_db(target, provider, key, case_data, list_name)
 	else
 		-- print("already got data for name:" .. key)
 		local current_data = target[key]
-		-- First previous aliases, if there are any.
-		-- if case_data.previous_aliases then
 		local current_aliases = current_data.previous_aliases
-		-- self:Print(current_aliases)
 		if case_data.previous_aliases ~= nil then
 			for alias, old_guid in pairs(case_data.previous_aliases) do
 				if current_aliases[alias] == nil then
@@ -272,11 +271,11 @@ function CP:add_to_target_db(target, provider, key, case_data, list_name)
 				end
 			end
 		end
-		-- end
-		-- Now report data
-		current_data.reports[list_name] = {
+		current_data.reports[provider] = {
+			last_known_guid = case_data.last_known_guid or false,
 			reason = case_data.reason,
-			evidence = case_data.evidence
+			evidence = case_data.evidence,
+			category = case_data.category or false,
 		}
 	end
 end
@@ -347,10 +346,56 @@ function CP:check_against_CLs()
 		return false
 	end
 
+	-- Else we've found a match on the name.
+	-- Now check if any reported GUIDs from providers match the unit's GUID.
 	local t = self.curated_db_local[self.current_unit_name]
-	self.partial_match = true
-	if self.current_unit_guid == t.guid then
-		self.partial_match = false
+	local guid_match = false
+	local guid_mismatch = false
+	local guid_ambiguous = false
+	local mismatch_table = {}
+	for provider, report in pairs(t.reports) do
+		if report.last_known_guid then
+			if report.last_known_guid == self.current_unit_guid then
+				guid_match = true
+			else
+				guid_mismatch = true
+				mismatch_table[provider] = report.last_known_guid
+			end
+		else
+			guid_ambiguous = true
+		end
+	end
+
+	-- Handle conditions where the reported guid from the provider does
+	-- not match the unit's guid. This indicates a likely mistake or false-positive.
+	if guid_mismatch then
+		for provider, guid in pairs(mismatch_table) do
+			local key = string.format(
+				"%s - %s - %s", self.current_full_name, provider, guid
+			)
+			-- Only do this once per unit mismatch so as not to spam the user.
+			if not self.db.global.false_positive_table[key] then
+				self:Print(
+					string.format(
+						"Warning: player %s is listed by %s, but with "..
+						"a mismatched GUID (%s recorded, %s in-game). This may imply a false "..
+						"positive where a scammer has renamed their toon, and someone new has taken their old name."..
+						" Please contact the provider of this list with this message's contents.",
+						self.current_full_name, provider, guid, self.current_unit_guid
+					)
+				)
+				self.db.global.false_positive_table[key] = true
+			end
+		end
+	end
+	-- If *only* a mismatch, return false
+	if guid_mismatch and (not guid_match) and (not guid_ambiguous) then
+		return false
+	end
+	-- If ambiguous, i.e. no definite guid match on any provider, set a 
+	-- partial_match flag.
+	if guid_ambiguous and not guid_match then
+		self.partial_match = true
 	end
 	self.current_alert_privilege = "curated"
 	return true
@@ -391,10 +436,19 @@ function CP:raise_alert()
 		end
 	end
 	udi[self.current_full_name]["last_alerted"] = GetTime()
-
 	local c_db = self.curated_db_global[self.current_full_name]
+	
+	-- Parse reports to eliminate guid mismatches
 	local reports = c_db['reports']
-
+	local reports_parsed = {}
+	for provider, report in pairs(reports) do
+		-- Catch mismatched guids and prevent printing.		
+		if report.last_known_guid ~= false and report.last_known_guid ~= self.current_unit_guid then
+			-- do nothing
+		else
+			reports_parsed[provider] = report
+		end
+	end
 	local context_pretty = context_pretty_table[self.current_scan_context]
 	local u = self:get_UDI()[self.current_full_name]
 	local s1 = ""
@@ -406,31 +460,35 @@ function CP:raise_alert()
 		context = self.current_scan_context,
 		context_pretty = context_pretty,
 		partial = self.partial_match,
-		reports = reports,
+		reports = reports_parsed,
 		udi = u,
 	}
 
 	-- Generate a summary message for the scan	
 	if u.level and u.guild then
-		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
 		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
 		string.format(" from the guild %s detected via ", u.guild)..
 		t.context_pretty .. " scan."
 	elseif t.udi.level then
-		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
 		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
 		" detected via ".. t.context_pretty .. " scan."
 	elseif t.udi.guild then
-		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
 		string.format(", %s %s", u.race, u.class) ..
 		string.format(" from the guild %s detected via ", u.guild)..
 		t.context .. " scan."
 	else
-		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
 		string.format(", %s %s", u.race, u.class) ..
 		" detected via ".. t.context .. " scan."
 	end
 	t.summary = s1
+
+	-- Generate guid match summary
+	local s2 = ""
+
 
 	-- Handle stats counters
 	self.db.global.n_alerts = self.db.global.n_alerts + 1
@@ -455,17 +513,18 @@ end
 function CP:display_chat_alert(t)
 	-- Function to generate and print an alert.
 	self:Print(t.summary)
-	local m1 = "- name and guid match records!"
-	if t.partial then
-		m1 = "- partial match on name only!"
-	end
-	-- print(m1)
 	for provider, report in pairs(t.reports) do
 		local reason = report.reason
 		local evidence = report.evidence
+		local last_known_guid = report.last_known_guid
 		self:Print(string.format("%s has listed this player for:", provider))
 		print(" - reason : " .. reason)
 		print(" - case url : " .. evidence)
+		if not report.last_known_guid then
+			print(" - partial match, no guid supplied by provider.")
+		elseif last_known_guid == self.current_unit_guid then
+			print(" - full match with provider's guid: " .. last_known_guid)
+		end
 	end
 end
 
