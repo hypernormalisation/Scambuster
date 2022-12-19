@@ -165,11 +165,14 @@ function CP:OnEnable()
 	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
 	end
-	self:RegisterEvent("GROUP_ROSTER_UPDATE")
-	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
-
+	if opts_db.use_group_scan then
+		self:RegisterEvent("GROUP_ROSTER_UPDATE")
+	end
+	if opts_db.use_group_request_scan then
+		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+	end
 	-- If in a group, run the group scan callback.
-	if IsInGroup() then
+	if opts_db.use_group_scan and IsInGroup() then
 		self:GROUP_ROSTER_UPDATE()
 	end
 
