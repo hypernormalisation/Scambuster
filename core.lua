@@ -36,6 +36,7 @@ local GetGuildInfo = GetGuildInfo
 local pairs = pairs
 local print = print
 local select = select
+local string = string
 local type = type
 local tostring = tostring
 
@@ -52,10 +53,19 @@ local function tab_dump(o)
 	end
  end
 
-function CP:get_class_color(class)
-	local t = RAID_CLASS_COLORS[class]
+function CP:colorise_name(name, class)
+	local c = RAID_CLASS_COLORS[class]
+	local cc = ('c' .. c.colorStr)
+	return "|"..cc..name.."|r"
 end
 
+
+local context_pretty_table = {
+	mouseover = "Mouseover",
+	target = "Target",
+	group = "Group",
+	invite_confirmation = "Invite Confirmation",
+}
 
 --=========================================================================================
 -- Helper funcs
@@ -131,7 +141,7 @@ end
 function CP:OnEnable()
 	-- some basic post-load info to gather
 	self.realm_name = GetRealmName()
-	self:Print("realm name = " .. tostring(self.realm_name))
+	-- self:Print("realm name = " .. tostring(self.realm_name))
 	self.player_faction = UnitFactionGroup("player")
 
 	-- Load necessary data.
@@ -304,30 +314,12 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 
 	-- Internally set a scan context and the target guid
 	-- to avoid multiple API calls and passing lots of arguments
-	unit_guid = unit_guid or UnitGUID(unit_token)
-	self.current_unit_guid = unit_guid
+	self.current_unit_guid = unit_guid or UnitGUID(unit_token)
+	self.current_unit_token = unit_token or false
 	self.current_scan_context = scan_context or unit_token
 	self.in_bg = UnitInBattleground("player")
-
-	-- First check against curated lists
-	local result = self:check_against_CLs()
-	if result then
-		self:raise_alert()
-		return
-	end
-	-- Then check against user lists
-	-- result = self:check_against_ULs()
-	-- if result then
-	-- 	self:raise_alert()
-	-- 	return
-	-- end
-
-	CP:clear_scan_vars()
-
-end
-
-function CP:check_against_CLs()
-	-- This function checks against the curated lists.
+	
+	-- Set internal vars
 	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
 	if realm == "" then
 		realm = self.realm_name
@@ -336,17 +328,26 @@ function CP:check_against_CLs()
 	self.current_realm_name = realm
 	self.current_full_name = name.."-"..realm
 
-	-- We make provisions for either just the name being recorded, or both the name
-	-- and the guid being recorded.
+	-- Check against curated lists
+	local result = self:check_against_CLs()
+	if result then
+		self:raise_alert()
+		return
+	end
+	CP:clear_scan_vars()
+end
+
+function CP:check_against_CLs()
+	-- This function checks against the curated lists.
 	if self.in_bg then
 		return -- maybe we have some option to disable in BG
 	end
 
-	if self.curated_db_local[name] == nil then
+	if self.curated_db_local[self.current_unit_name] == nil then
 		return false
 	end
 
-	local t = self.curated_db_local[name]
+	local t = self.curated_db_local[self.current_unit_name]
 	self.partial_match = true
 	if self.current_unit_guid == t.guid then
 		self.partial_match = false
@@ -378,7 +379,6 @@ end
 --=========================================================================================
 function CP:raise_alert()
 	self:update_udi()
-
 	-- Figure out if we're still on lockout for this player
 	local udi = self:get_UDI()
 	local last_alerted = udi[self.current_full_name]["last_alerted"]
@@ -392,24 +392,50 @@ function CP:raise_alert()
 	end
 	udi[self.current_full_name]["last_alerted"] = GetTime()
 
-	-- Construct and push the alert
-	-- self:Print("-- Listed player detected: "..tostring(self.current_unit_name))
-	-- self:Print("--   Scan Context  : "..tostring(self.current_scan_context))
-	-- self:Print("--   Partial match : "..tostring(self.partial_match))
+	local c_db = self.curated_db_global[self.current_full_name]
+	local reports = c_db['reports']
 
-	local t = self.curated_db_global[self.current_full_name]
-	local reports = t['reports']
-	local new_t = {
+	local context_pretty = context_pretty_table[self.current_scan_context]
+	local u = self:get_UDI()[self.current_full_name]
+	local s1 = ""
+
+	local t = {
 		name = self.current_full_name,
+		name_short = self.current_unit_name,
 		guid = self.current_unit_guid,
 		context = self.current_scan_context,
+		context_pretty = context_pretty,
 		partial = self.partial_match,
-		reports = reports
+		reports = reports,
+		udi = u,
 	}
+
+	-- Generate a summary message for the scan	
+	if u.level and u.guild then
+		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
+		string.format(" from the guild %s detected via ", u.guild)..
+		t.context_pretty .. " scan."
+	elseif t.udi.level then
+		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
+		" detected via ".. t.context_pretty .. " scan."
+	elseif t.udi.guild then
+		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		string.format(", %s %s", u.race, u.class) ..
+		string.format(" from the guild %s detected via ", u.guild)..
+		t.context .. " scan."
+	else
+		s1 = "Flagged " .. self:colorise_name(t.name_short, u.english_class)..
+		string.format(", %s %s", u.race, u.class) ..
+		" detected via ".. t.context .. " scan."
+	end
+	t.summary = s1
+
 	-- Handle stats counters
 	self.db.global.n_alerts = self.db.global.n_alerts + 1
 	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
-	self:post_alert(new_t)
+	self:post_alert(t)
 end
 
 function CP:post_alert(t)
@@ -428,26 +454,18 @@ end
 
 function CP:display_chat_alert(t)
 	-- Function to generate and print an alert.
-	self:Print("Flagged character detected!")
-	local m1  = " Name: "..t.name 
-	local m12 = " Guid: "..t.guid
-	local m2 = "  - name and guid match records"
+	self:Print(t.summary)
+	local m1 = "- name and guid match records!"
 	if t.partial then
-		m2 = "  - partial match on name only"
+		m1 = "- partial match on name only!"
 	end
-	local m3 = " Picked up in scan: " .. t.context
-
-	print(m3)
-	print(m1)
-	print(m12)
-	print(m2)
-	-- print(tab_dump(t.reports))
+	-- print(m1)
 	for provider, report in pairs(t.reports) do
 		local reason = report.reason
 		local evidence = report.evidence
-		print(string.format("Provider %s has listed this player for:", provider))
-		print(" reason : " .. reason)
-		print(" case url : " .. evidence)
+		self:Print(string.format("%s has listed this player for:", provider))
+		print(" - reason : " .. reason)
+		print(" - case url : " .. evidence)
 	end
 end
 
@@ -464,35 +482,47 @@ end
 function CP:update_udi()
 	-- Function to update the player dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
-	local name = self.current_unit_name
-	local realm = self.current_realm_name
+
 	local index = self.current_full_name
 	local t = self:get_UDI()
-
 	if t[index] == nil then
 		-- self:Print(string.format('Registering new info for %s', index))
 		t[index] = {}
 	else
 		-- self:Print(string.format('Updating info for %s', index))
 	end
-	local token = self.current_scan_context
-	local class = UnitClass(token)
-	local level = UnitLevel(token)
-	local race = UnitRace(token)
-	local guild = GetGuildInfo(token)
-	local guid = UnitGUID(token)
+	local p = t[index]
 
-	local last_alerted = t[index]["last_alerted"] or false
+	-- If we have a unit token we can access finer info from, use that.
+	if self.current_unit_token then
+		local token = self.current_unit_token
+		p.class, p.english_class = UnitClass(token)
+		p.level = UnitLevel(token)
+		p.guild = GetGuildInfo(token) or false
+		p.race = UnitRace(token)
+		p.guid = self.current_unit_guid
+		p.last_seen = GetTime()
+		p.last_alerted = p.last_alerted or false
+		p.name_short = self.current_unit_name
 
-	t[index] = {
-		class = class,
-		level = level,
-		guild = guild,
-		race = race,
-		guid = guid,
-		last_seen = GetTime(),
-		last_alerted = last_alerted
-	}
+	-- Else we're accessing the unit's details via a GUID, which means less available
+	-- info via. the API.
+	else
+		local loc_class, english_class, race, _, _, name = GetPlayerInfoByGUID(
+			self.current_unit_guid
+		)
+		p.class = loc_class
+		p.english_class = english_class
+		p.race = race
+		p.name_short = self.current_unit_name
+		p.last_seen = GetTime()
+		p.last_alerted = p.last_alerted or false
+		p.name_short = self.current_unit_name
+		-- Now the info we don't have, fall back on old or if new entry 
+		-- put false.
+		p.guild = p.guild or false
+		p.level = p.level or false
+	end
 end
 
 --=========================================================================================
@@ -521,7 +551,7 @@ end
 function CP:GROUP_ROSTER_UPDATE()
 	local members = {}
 	if not IsInGroup() then
-		print("not in a group")
+		-- print("not in a group")
 		return
 	end
 	-- Based on reading online, might need a short C_Timer in here if the unit info
@@ -539,7 +569,7 @@ function CP:GROUP_ROSTER_UPDATE()
 	end
 	self.members = members
 	for name, guid in pairs(members) do
-		self:Print(name, guid)
+		-- self:Print(name, guid)
 		self:check_unit(nil, guid, "group")
 	end
 end
