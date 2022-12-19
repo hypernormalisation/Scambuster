@@ -1,7 +1,9 @@
+--=========================================================================================
+-- This module contains test lists for debugging and development purposes.
+--=========================================================================================
 local addon_name, cp = ...
 if not cp.add_test_list then return end
 
--- This module contains a test list for debugging purposes.
 local golemagg_list = {
     [0] = {
         last_known_name = "Thrall",
@@ -74,7 +76,7 @@ local test_bl_2 = {
     url = "zug_url",
     realm_data = {
         Golemagg = golemagg_list2,
-        ["Classic PTR Realm 1"] = golemagg_list2,
+        ["Classic PTR Realm 1"] = golemagg_list,
     }
 }
 
