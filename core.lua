@@ -33,6 +33,8 @@ local UnitRace = UnitRace
 local UnitClass = UnitClass
 local GetGuildInfo = GetGuildInfo
 
+local LE_PARTY_CATEGORY_HOME = LE_PARTY_CATEGORY_HOME
+
 local pairs = pairs
 local print = print
 local select = select
@@ -172,7 +174,7 @@ function CP:OnEnable()
 		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 	end
 	-- If in a group, run the group scan callback.
-	if opts_db.use_group_scan and IsInGroup() then
+	if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
 		self:GROUP_ROSTER_UPDATE()
 	end
 
@@ -612,14 +614,14 @@ end
 
 function CP:GROUP_ROSTER_UPDATE()
 	local members = {}
-	if not IsInGroup() then
+	if not IsInGroup(LE_PARTY_CATEGORY_HOME) then
 		-- print("not in a group")
 		return
 	end
 	-- Based on reading online, might need a short C_Timer in here if the unit info
 	-- isn't available 
 	local n, unit = GetNumGroupMembers(), "raid"
-	if not IsInRaid() then
+	if not IsInRaid(LE_PARTY_CATEGORY_HOME) then
 		n, unit = n - 1, "party"
 	end
 	for i = 1, n do
