@@ -68,6 +68,7 @@ local context_pretty_table = {
 	group = "Group",
 	invite_confirmation = "Invite Confirmation",
 	trade = "Trade Window",
+	whisper = "Whisper",
 }
 
 --=========================================================================================
@@ -317,7 +318,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- Requires one of unit_token or unit_guid.
 	-- The scan_context is required to tell the alerts system what scan
 	--  registered the unit. If a unit_token is given, it defaults to that.
-	--  If it is not given, as for whispers or invite
+	--  If a unit token does not exist, as for whispers or invite
 	--  confirmations, it should be passed manually.
 
 	-- Internally set a scan context and the target guid
@@ -548,7 +549,7 @@ end
 -- User Dynamic Information funcs
 --=========================================================================================
 function CP:update_udi()
-	-- Function to update the player dynamic information table.
+	-- Function to update the user dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
 
 	local index = self.current_full_name
@@ -586,7 +587,7 @@ function CP:update_udi()
 		p.last_seen = GetTime()
 		p.last_alerted = p.last_alerted or false
 		p.name_short = self.current_unit_name
-		-- Now the info we don't have, fall back on old or if new entry 
+		-- Now the info we don't have, fall back on old info or if new entry 
 		-- put false.
 		p.guild = p.guild or false
 		p.level = p.level or false
