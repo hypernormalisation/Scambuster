@@ -12,6 +12,7 @@ CP.defaults = {
 		n_alerts = 0,
 		udi = {},
 		provider_settings = {},
+		false_positive_table = {},
 	},
 	realm = {
 		n_alerts = 0,
