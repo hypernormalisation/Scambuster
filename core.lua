@@ -502,7 +502,7 @@ function CP:post_alert(t)
 	self.pending_alerts[self.alert_counter] = t
 	self.alert_counter = self.alert_counter + 1
 	local db = self:get_opts_db()
-	if db.b_play_alert_sound then
+	if db.use_alert_sound then
 		self:play_alert_sound()
 	end
 	if db.use_chat_alert then
