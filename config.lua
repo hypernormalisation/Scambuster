@@ -34,6 +34,7 @@ CP.defaults = {
 		use_target_scan = true,
 		use_group_scan = true,
 		use_group_request_scan = true,
+		use_trade_scan = true,
 		alert_lockout_seconds = 900,
     },
 }
@@ -138,6 +139,21 @@ CP.options = {
 					CP:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 				else
 					CP:UnregisterEvent("GROUP_INVITE_CONFIRMATION")
+				end
+			end
+		},
+		use_trade_scan = {
+			order = 3.7,
+			type = "toggle",
+			name = "Trade",
+			desc = "If enabled, will check any trade partners against the database.",
+			get = "opts_getter",
+			set = function(_, value)
+				CP.db.profile.use_trade_scan = value
+				if value then
+					CP:RegisterEvent("TRADE_SHOW")
+				else
+					CP:UnregisterEvent("TRADE_SHOW")
 				end
 			end
 		},

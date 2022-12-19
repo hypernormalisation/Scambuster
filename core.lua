@@ -161,6 +161,9 @@ function CP:OnEnable()
 	if opts_db.use_target_scan then
 		self:RegisterEvent("PLAYER_TARGET_CHANGED")
 	end
+	if opts_db.use_trade_scan then
+		self:RegisterEvent("TRADE_SHOW")
+	end
 	-- Welcome message if requested
 	if self.conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
@@ -642,6 +645,16 @@ function CP:GROUP_INVITE_CONFIRMATION()
 	local _, name, guid = GetInviteConfirmationInfo(invite_guid)
 	self:Print(name, guid)
 	self:check_unit(nil, guid, "invite_confirmation")
+end
+
+function CP:TRADE_SHOW()
+	-- This event is called when the trade window is opened.
+	-- We can use the special "NPC" unit to get info we need on the
+	-- character. See
+	-- https://github.com/Gethe/wow-ui-source/blob/f0084386950fe3dc31a1d61de33b364e268cf66b/Interface/FrameXML/TradeFrame.lua#L68
+	-- The other relevant event for the trade is "TRADE_REQUEST", however we cannot
+	-- use it, because the "NPC" unit is only valid when the trade window is open.
+	self:check_unit("NPC", nil, "trade")
 end
 
 --=========================================================================================
