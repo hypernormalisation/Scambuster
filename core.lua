@@ -10,7 +10,7 @@ cp.add_test_list = true
 local L = cp.L
 if cp.debug then CP:Print("Parsing core.lua...") end
 
--- Load some relevant wow API and lua globals into the local namespace for efficiency
+-- Load some relevant wow API and lua globals into the local namespace.
 local GetInviteConfirmationInfo = GetInviteConfirmationInfo
 local GetNextPendingInviteConfirmation = GetNextPendingInviteConfirmation
 local GetUnitName = GetUnitName
@@ -254,7 +254,6 @@ function CP:add_to_target_db(target, provider, key, case_data, list_name)
 	-- If no provider has given data on this player yet, make a new entry
 	if target[key] == nil then
 		local pa = case_data.previous_aliases or {}
-		-- self:Print(pa)
 		target[key] = {
 			-- guid = case_data.last_known_guid or false,
 			previous_aliases = pa,
@@ -321,14 +320,12 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	--  If a unit token does not exist, as for whispers or invite
 	--  confirmations, it should be passed manually.
 
-	-- Internally set a scan context and the target guid
+	-- Internally set the scan vars
 	-- to avoid multiple API calls and passing lots of arguments
 	self.current_unit_guid = unit_guid or UnitGUID(unit_token)
 	self.current_unit_token = unit_token or false
 	self.current_scan_context = scan_context or unit_token
 	self.in_bg = UnitInBattleground("player")
-	
-	-- Set internal vars
 	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
 	if realm == "" then
 		realm = self.realm_name
@@ -389,7 +386,8 @@ function CP:check_against_CLs()
 					string.format(
 						"Warning: player %s is listed by %s, but with "..
 						"a mismatched GUID (%s recorded, %s in-game). This may imply a false "..
-						"positive where a scammer has renamed their toon, and someone new has taken their old name."..
+						"positive where a scammer has renamed their toon, and someone new "..
+						"has taken their old name."..
 						" Please contact the provider of this list with this message's contents.",
 						self.current_full_name, provider, guid, self.current_unit_guid
 					)
@@ -417,9 +415,9 @@ function CP:check_against_ULs()
 end
 
 function CP:clear_scan_vars()
-	-- reset the internal containers
+	-- Clear the internal containers
 	-- not strictly necessary but if we assign one only 
-	-- in a conditional it might be hard to debug
+	-- in a conditional by accident it might be hard to debug.
 	self.current_unit_name = nil
 	self.current_realm_name = nil
 	self.current_full_name = nil
@@ -447,7 +445,7 @@ function CP:raise_alert()
 	end
 	udi[self.current_full_name]["last_alerted"] = GetTime()
 	local c_db = self.curated_db_global[self.current_full_name]
-	
+
 	-- Parse reports to eliminate guid mismatches
 	local reports = c_db['reports']
 	local reports_parsed = {}
@@ -461,7 +459,6 @@ function CP:raise_alert()
 	end
 	local context_pretty = context_pretty_table[self.current_scan_context]
 	local u = self:get_UDI()[self.current_full_name]
-	local s1 = ""
 
 	local t = {
 		name = self.current_full_name,
@@ -475,6 +472,7 @@ function CP:raise_alert()
 	}
 
 	-- Generate a summary message for the scan	
+	local s1 = ""
 	if u.level and u.guild then
 		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
 		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
@@ -498,7 +496,6 @@ function CP:raise_alert()
 
 	-- Generate guid match summary
 	local s2 = ""
-
 
 	-- Handle stats counters
 	self.db.global.n_alerts = self.db.global.n_alerts + 1
@@ -551,7 +548,6 @@ end
 function CP:update_udi()
 	-- Function to update the user dynamic information table.
 	-- when we encounter a scammer in-game and can access their information.
-
 	local index = self.current_full_name
 	local t = self:get_UDI()
 	if t[index] == nil then
@@ -575,7 +571,7 @@ function CP:update_udi()
 		p.name_short = self.current_unit_name
 
 	-- Else we're accessing the unit's details via a GUID, which means less available
-	-- info via. the API.
+	-- info via the API.
 	else
 		local loc_class, english_class, race, _, _, name = GetPlayerInfoByGUID(
 			self.current_unit_guid
@@ -587,8 +583,8 @@ function CP:update_udi()
 		p.last_seen = GetTime()
 		p.last_alerted = p.last_alerted or false
 		p.name_short = self.current_unit_name
-		-- Now the info we don't have, fall back on old info or if new entry 
-		-- put false.
+		-- Now the info we don't have access to, fall back on old info 
+		-- or if new entry put false.
 		p.guild = p.guild or false
 		p.level = p.level or false
 	end
