@@ -67,6 +67,7 @@ local context_pretty_table = {
 	target = "Target",
 	group = "Group",
 	invite_confirmation = "Invite Confirmation",
+	trade = "Trade Window",
 }
 
 --=========================================================================================
