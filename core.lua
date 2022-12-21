@@ -33,8 +33,11 @@ local UnitRace = UnitRace
 local UnitClass = UnitClass
 local GetGuildInfo = GetGuildInfo
 
+local pcall = pcall
+
 local LE_PARTY_CATEGORY_HOME = LE_PARTY_CATEGORY_HOME
 
+local ipairs = ipairs
 local pairs = pairs
 local print = print
 local select = select
@@ -122,19 +125,14 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("dump_local", "dump_local")
 	self:RegisterChatCommand("dump_global", "dump_global")
 	self:RegisterChatCommand("dump_udi", "dump_udi")
+
 	self:RegisterChatCommand("clear_udi", "clear_udi")
+	self:RegisterChatCommand("clear_fps", "clear_fps")
 	self:RegisterChatCommand("test1", "test1")
 
-	-- self:RegisterChatCommand("blocklist_target", "slashcommand_blocklist_target")
-	-- self:RegisterChatCommand("blocklist_name", "slashcommand_blocklist_name")
-	-- self:RegisterChatCommand("soundcheck", "slashcommand_soundcheck")
-	-- self:RegisterChatCommand("dump_config", "slashcommand_dump_config")
-
-	self.raw_curated_lists = {}
-	self.ucl_counter = 0
-	self.unprocessed_user_lists = {}
-	self.curated_db_local = {}
-	self.curated_db_global = {}
+	-- Temporary 
+	self.unprocessed_case_data = {}
+	self.provider_counter = 0
 
 	-- Containers for the alerts system.
 	self.alert_counter = 0  -- just for index handling on temp alerts list
@@ -143,16 +141,13 @@ function CP:OnInitialize()
 end
 
 function CP:OnEnable()
-	-- some basic post-load info to gather
 	self.realm_name = GetRealmName()
-	-- self:Print("realm name = " .. tostring(self.realm_name))
 	self.player_faction = UnitFactionGroup("player")
 
-	-- Load necessary data.
-	-- We do this here so extensions can init their
-	-- provider blocklists before we construct the cbl.
+	-- Alert the extension addons to register their case data.
 	self.callbacks:Fire("CUTPURSE_LIST_CONSTRUCTION")
-	self:construct_dbs()
+	-- Then build the database.
+	self:build_database()
 
 	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
@@ -168,19 +163,20 @@ function CP:OnEnable()
 	if opts_db.use_trade_scan then
 		self:RegisterEvent("TRADE_SHOW")
 	end
-	-- Welcome message if requested
-	if self.conf.welcome_message then
-		self:Print('Welcome to version 0.0.1.')
-	end
 	if opts_db.use_group_scan then
 		self:RegisterEvent("GROUP_ROSTER_UPDATE")
 	end
 	if opts_db.use_group_request_scan then
 		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 	end
-	-- If in a group, run the group scan callback.
+	-- Only if in a group, run the group scan callback.
 	if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
 		self:GROUP_ROSTER_UPDATE()
+	end
+
+	-- Welcome message if requested
+	if opts_db.welcome_message then
+		self:Print('Welcome to version 0.0.1.')
 	end
 
 end
@@ -189,60 +185,146 @@ end
 -- Funcs to register lists with Cutpurse, for use in addons that extend Cutpurse, and
 -- funcs to construct the lists used by the addon.
 --=========================================================================================
-function CP:register_curated_list(data)
+function CP:register_case_data(data)
+	-- Function to be called in provider extentions upon receiving
+	-- the CUTPURSE_LIST_CONSTRUCTION callback.
+	-- This function takes a table of case data vars with integer keys.
 	self:Print("CALL TO REGISTER A LIST")
-	self.ucl_counter = self.ucl_counter + 1
-	self.raw_curated_lists[self.ucl_counter] = data
+	self.provider_counter = self.provider_counter + 1
+	self.unprocessed_case_data[self.provider_counter] = data
 end
 
-function CP:register_user_list(data)
-	-- Might not need this one
-end
+function CP:build_database()
+	-- This function builds (or rebuilds) the database from the registered
+	-- raw lists from the provider extensions.
+	self:Print("Building Cutpurse data model...")
+	-- This is the table containing the flagged users.
+	self.user_table = {}
+	-- This is the table containing the processed case data and its counter.
+	self.case_data_counter = 0
+	self.case_table = {}
+	-- These are the lookup tables for guid and name lookups.
+	self.guid_lookup = {}
+	self.name_lookup = {}
+	-- Tables for sanity checks on old aliases and guids.
+	self.previous_guid_table = {}
+	self.alias_table = {}
 
-function CP:construct_dbs()
-	-- This function builds the relevant dbs
-	self:Print("GOING TO CONSTRUCT LISTS NOW")
+	-- Now iterate over the unprocessed case data and build up the db.
 	local pdb = self:get_provider_settings()
-	local ucl = self.raw_curated_lists
-	self.curated_db_local = {}
-	self.curated_db_global = {}
-
-	for _, new_list in pairs(ucl) do
-		local n = new_list.name
+	for _, l in pairs(self.unprocessed_case_data) do
+		local n = l.name
+		-- If no setting for this provider, assume enabled.
 		if pdb[n] == nil then
 			pdb[n] = {enabled = true}
-			self:add_curated_list_to_db(new_list)
+			self:process_case_data(l)
+		-- Else check for disabled lists and skip
 		else
 			if pdb[n].enabled then
-				self:add_curated_list_to_db(new_list)
+				self:process_case_data(l)
 			end
 		end
 	end
 end
 
-function CP:add_curated_list_to_db(l)
-	local list_name = l.name
-	local provider = l.provider
+function CP:protected_process_case_data(l)
+	-- Wrap the parse of the unprocessed case data in a pcall.
+	local result = pcall(self.process_case_data, l)
+	if not result then
+		local name = l.name or l.provider or "UNIDENTIFIED LIST"
+		self:Print(
+			string.format(
+				"ERROR: the provider list %s could not be properly processed. "..
+				"Please contact the distributer of this list and disable the extension "..
+				"module until a fix is provided by the distributer, as this list may "..
+				"corrupt Cutpurse's internal databases.",
+				name
+			)
+		)
+	end
+end
+
+function CP:process_case_data(l)
+	-- Takes the given case data for a single provider and adds
+	-- it to the database.
 	for realm, realm_dict in pairs(l.realm_data) do
 		for _, case_data in pairs(realm_dict) do
-			local player_name = case_data.last_known_name
-			local full_name = string.format("%s-%s", player_name, realm)
+
+			-- First get the user info.
+			local full_name = string.format("%s-%s", case_data.name, realm)
+			local t = self.user_table[full_name]
+
+			-- If the name already exists, we might be able to add some optional
+			-- data not already present.
+			if t then
+				t.guid = t.guid or case_data.guid or false
+				if case_data.aliases then
+					for _, alias in ipairs(case_data.aliases) do
+						if not t.aliases[alias] then
+							t.aliases[alias] = true
+							self.alias_table[alias] = true
+						end
+					end
+				end
+				if case_data.previous_guids then
+					for _, g in ipairs(case_data.previous_guids) do
+						if not t.previous_guids[g] then
+							t.previous_guids[g] = true
+							self.previous_guid_table[g] = true
+						end
+					end
+				end
+			-- Else we have a new name to process.
+			else
+				self.user_table[full_name] = {}
+				t = self.user_table[full_name]
+				t.guid = t.guid or case_data.guid or false
+				t.aliases = {}
+				if case_data.aliases then
+					for _, alias in ipairs(case_data.aliases) do
+						t.aliases[alias] = true
+						self.alias_table[alias] = true
+					end
+				end
+				t.previous_guids = {}
+				if case_data.previous_guids then
+					for _, g in ipairs(case_data.previous_guids) do
+						t.previous_guids[g] = true
+						self.previous_guid_table[g] = true
+					end
+				end
+				-- And the table for related cases.
+				t.cases = {}
+			end
+
+			-- Now parse the info relating to the case
+			self.case_data_counter = self.case_data_counter + 1
+			local c = {}
+			c.description = case_data.description
+			c.url = case_data.url
+			c.category = case_data.category or false
+			c.level = case_data.level or false
+			c.name = full_name
+
+
+
+
 			-- Always add to the global db regardless of realm.
 			self:add_to_target_db(
 				self.curated_db_global,
-				provider,
+				l.provider,
 				full_name,
 				case_data,
-				list_name
+				l.name
 			)
 			-- Add to the local db if the realm matches the player's home realm.
 			if realm == self.realm_name then
 				self:add_to_target_db(
 					self.curated_db_local,
-					provider,
+					l.provider,
 					player_name,
 					case_data,
-					list_name
+					l.name
 				)
 			end
 		end
@@ -407,11 +489,6 @@ function CP:check_against_CLs()
 	end
 	self.current_alert_privilege = "curated"
 	return true
-end
-
-function CP:check_against_ULs()
-	-- This function checks against the user lists.
-	-- WILL BE IMPLEMENTED WHEN USER LISTS ARE SUPPORTED
 end
 
 function CP:clear_scan_vars()
@@ -682,6 +759,11 @@ end
 
 function CP:clear_udi()
 	self.db.global.udi = {}
+end
+
+function CP:clear_fps()
+	-- Clear false positive table
+	self.db.global.false_positive_table = {}
 end
 
 function CP:slashcommand_soundcheck()
