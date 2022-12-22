@@ -122,10 +122,12 @@ function CP:OnInitialize()
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("cp", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
-	self:RegisterChatCommand("dump_local", "dump_local")
-	self:RegisterChatCommand("dump_global", "dump_global")
-	self:RegisterChatCommand("dump_udi", "dump_udi")
+	self:RegisterChatCommand("dump_users", "dump_users")
+	self:RegisterChatCommand("dump_incidents", "dump_incidents")
+	self:RegisterChatCommand("dump_name_lookup", "dump_name_lookup")
+	self:RegisterChatCommand("dump_guid_lookup", "dump_guid_lookup")
 
+	self:RegisterChatCommand("dump_udi", "dump_udi")
 	self:RegisterChatCommand("clear_udi", "clear_udi")
 	self:RegisterChatCommand("clear_fps", "clear_fps")
 	self:RegisterChatCommand("test1", "test1")
@@ -151,28 +153,28 @@ function CP:OnEnable()
 
 	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
-	if opts_db.use_mouseover_scan then
-		self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-	end
-	if opts_db.use_whisper_scan then
-		self:RegisterEvent("CHAT_MSG_WHISPER")
-	end
-	if opts_db.use_target_scan then
-		self:RegisterEvent("PLAYER_TARGET_CHANGED")
-	end
-	if opts_db.use_trade_scan then
-		self:RegisterEvent("TRADE_SHOW")
-	end
-	if opts_db.use_group_scan then
-		self:RegisterEvent("GROUP_ROSTER_UPDATE")
-	end
-	if opts_db.use_group_request_scan then
-		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
-	end
-	-- Only if in a group, run the group scan callback.
-	if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
-		self:GROUP_ROSTER_UPDATE()
-	end
+	-- if opts_db.use_mouseover_scan then
+	-- 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+	-- end
+	-- if opts_db.use_whisper_scan then
+	-- 	self:RegisterEvent("CHAT_MSG_WHISPER")
+	-- end
+	-- if opts_db.use_target_scan then
+	-- 	self:RegisterEvent("PLAYER_TARGET_CHANGED")
+	-- end
+	-- if opts_db.use_trade_scan then
+	-- 	self:RegisterEvent("TRADE_SHOW")
+	-- end
+	-- if opts_db.use_group_scan then
+	-- 	self:RegisterEvent("GROUP_ROSTER_UPDATE")
+	-- end
+	-- if opts_db.use_group_request_scan then
+	-- 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+	-- end
+	-- -- Only if in a group, run the group scan callback.
+	-- if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+	-- 	self:GROUP_ROSTER_UPDATE()
+	-- end
 
 	-- Welcome message if requested
 	if opts_db.welcome_message then
@@ -197,12 +199,13 @@ end
 function CP:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
-	self:Print("Building Cutpurse data model...")
+	self:Print("Building Cutpurse database...")
 	-- This is the table containing the flagged users.
+	self.user_counter = 0
 	self.user_table = {}
 	-- This is the table containing the processed case data and its counter.
 	self.case_data_counter = 0
-	self.case_table = {}
+	self.incident_table = {}
 	-- These are the lookup tables for guid and name lookups.
 	self.guid_lookup = {}
 	self.name_lookup = {}
@@ -249,129 +252,139 @@ function CP:process_case_data(l)
 	-- it to the database.
 	for realm, realm_dict in pairs(l.realm_data) do
 		for _, case_data in pairs(realm_dict) do
-
-			-- First get the user info.
-			local full_name = string.format("%s-%s", case_data.name, realm)
-			local t = self.user_table[full_name]
-
-			-- If the name already exists, we might be able to add some optional
-			-- data not already present.
-			if t then
-				t.guid = t.guid or case_data.guid or false
-				if case_data.aliases then
-					for _, alias in ipairs(case_data.aliases) do
-						if not t.aliases[alias] then
-							t.aliases[alias] = true
-							self.alias_table[alias] = true
-						end
-					end
-				end
-				if case_data.previous_guids then
-					for _, g in ipairs(case_data.previous_guids) do
-						if not t.previous_guids[g] then
-							t.previous_guids[g] = true
-							self.previous_guid_table[g] = true
-						end
-					end
-				end
-			-- Else we have a new name to process.
+			case_data.realm = realm
+			if case_data.guid then
+				self:process_case_by_guid(case_data)
 			else
-				self.user_table[full_name] = {}
-				t = self.user_table[full_name]
-				t.guid = t.guid or case_data.guid or false
-				t.aliases = {}
-				if case_data.aliases then
-					for _, alias in ipairs(case_data.aliases) do
-						t.aliases[alias] = true
-						self.alias_table[alias] = true
-					end
-				end
-				t.previous_guids = {}
-				if case_data.previous_guids then
-					for _, g in ipairs(case_data.previous_guids) do
-						t.previous_guids[g] = true
-						self.previous_guid_table[g] = true
-					end
-				end
-				-- And the table for related cases.
-				t.cases = {}
+				self:process_case_by_name(case_data)
 			end
+		end
+	end
+end
 
-			-- Now parse the info relating to the case
-			self.case_data_counter = self.case_data_counter + 1
-			local c = {}
-			c.description = case_data.description
-			c.url = case_data.url
-			c.category = case_data.category or false
-			c.level = case_data.level or false
-			c.name = full_name
+function CP:process_case_by_guid(case_data)
+	-- This function processes an individual case where a guid
+	-- is given in the case data. If a user entry already exists for this
+	-- guid, it merges the information. Else, it creates a new entry.
+	local user_index = self.guid_lookup[case_data.guid]
+	local t = {}
 
-
-
-
-			-- Always add to the global db regardless of realm.
-			self:add_to_target_db(
-				self.curated_db_global,
-				l.provider,
-				full_name,
-				case_data,
-				l.name
+	if user_index then
+		t = self.user_table[user_index]
+		if case_data.realm ~= t.realm then
+			self:Print(
+				"Warning: two lists have the same player matched by current guid, but "..
+				"listed on different servers, which is impossible. "..
+				string.format("Player name: %s", case_data.name .. "-" .. case_data.realm)
 			)
-			-- Add to the local db if the realm matches the player's home realm.
-			if realm == self.realm_name then
-				self:add_to_target_db(
-					self.curated_db_local,
-					l.provider,
-					player_name,
-					case_data,
-					l.name
-				)
-			end
 		end
-	end
-end
-
-function CP:add_to_target_db(target, provider, key, case_data, list_name)
-	-- key is name or name-realm
-	-- If no provider has given data on this player yet, make a new entry
-	if target[key] == nil then
-		local pa = case_data.previous_aliases or {}
-		target[key] = {
-			-- guid = case_data.last_known_guid or false,
-			previous_aliases = pa,
-			reports = {
-				[provider] = {
-					last_known_guid = case_data.last_known_guid or false,
-					reason = case_data.reason,
-					evidence = case_data.evidence,
-					category = case_data.category or false,
-				}
-			}
-		}
-	-- If there is already data, add the relevant fields
 	else
-		-- print("already got data for name:" .. key)
-		local current_data = target[key]
-		local current_aliases = current_data.previous_aliases
-		if case_data.previous_aliases ~= nil then
-			for alias, old_guid in pairs(case_data.previous_aliases) do
-				if current_aliases[alias] == nil then
-					current_aliases[alias] = old_guid
-				elseif old_guid ~= 0 then
-					current_aliases[alias] = old_guid
-				end
+		t.realm = case_data.realm
+		t.names = {}
+		t.previous_names = {}
+		t.previous_guids = {}
+		t.incidents = {}
+	end
+
+	-- Add name if not present to possible current names.
+	if not t.names[case_data.name] then
+		t.names[case_data.name] = true
+		-- Also add the lookup entry if we don't have it
+		self.name_lookup[case_data.name] = user_index
+	end
+	-- Possible previous names
+	if case_data.previous_names then
+		for _, alias in ipairs(case_data.previous_names) do
+			if not t.aliases[alias] then
+				t.aliases[alias] = true
+				self.alias_table[alias] = case_data.name
 			end
 		end
-		current_data.reports[provider] = {
-			last_known_guid = case_data.last_known_guid or false,
-			reason = case_data.reason,
-			evidence = case_data.evidence,
-			category = case_data.category or false,
-		}
 	end
+	-- Possible previous guids
+	if case_data.previous_guids then
+		for _, g in ipairs(case_data.previous_guids) do
+			if not t.previous_guids[g] then
+				t.previous_guids[g] = true
+				self.previous_guid_table[g] = {guid = case_data.guid}
+			end
+		end
+	end
+
+	-- If no user index, increment and add.
+	self.user_counter = self.user_counter + 1
+	user_index = self.user_counter
+	self.user_table[user_index] = t
+
+	-- If necessary, add to the guid lookup table.
+	if not self.guid_lookup[case_data.guid] then
+		self.guid_lookup[case_data.guid] = user_index
+	end
+
+	-- Now process the incident details.
+	self:process_incident(user_index, case_data)
 end
 
+function CP:process_case_by_name(case_data)
+	-- This function processes an individual case where a name
+	-- and no GUID is given. Because we cannot guarantee two cases
+	-- with two names are the same person, we always generate a new user
+	-- table entry for each case.
+	-- Name lookups can point to multiple users.
+	self.user_counter = self.user_counter + 1
+	local user_index = self.user_counter
+	local full_name = case_data.name .. "-" .. case_data.realm
+	local t = {}
+	t.names = {}
+	t.realm = case_data.realm
+	t.names[case_data.name] = true
 
+	t.previous_names = {}
+	if case_data.previous_names then
+		for _, alias in ipairs(case_data.previous_names) do
+			t.aliases[alias] = true
+			self.alias_table[alias] = case_data.name
+		end
+	end
+
+	if case_data.previous_guids then
+		for _, g in ipairs(case_data.previous_guids) do
+			t.previous_guids[g] = true
+			self.previous_guid_table[g] = {guid = case_data.guid}
+		end
+	end
+	t.previous_guids = {}
+	t.incidents = {}
+
+	-- Add to user table
+	self.user_table[user_index] = t
+
+	-- Now check if the name exists in the name_lookup table, and if so append.
+	-- Else create new table and fill entry.
+	if not self.name_lookup[full_name] then
+		self.name_lookup[full_name] = {}
+	end
+	self.name_lookup[full_name][user_index] = true
+
+	-- Now process the incident details.
+	self:process_incident(user_index, case_data)
+
+end
+
+function CP:process_incident(user_index, case_data)
+	-- Function to add the specific details of the case_data
+	-- that refer to a given incident to the incident_table.
+	self.case_data_counter = self.case_data_counter + 1
+	local c = {}
+	c.description = case_data.description
+	c.url = case_data.url
+	c.category = case_data.category or false
+	c.level = case_data.level or 1
+	c.user = user_index
+	self.incident_table[self.case_data_counter] = c
+	-- Record a reference for this case in the user table.
+	self.user_table[user_index].incidents[self.case_data_counter] = true
+end
 
 --=========================================================================================
 -- Scanning and checking functionality.
@@ -745,12 +758,20 @@ function CP:slashcommand_options(input, editbox)
 	ACD:Open(addon_name.."_Options")
 end
 
-function CP:dump_local()
-	print(tab_dump(self.curated_db_local))
+function CP:dump_users()
+	print(tab_dump(self.user_table))
 end
 
-function CP:dump_global()
-	print(tab_dump(self.curated_db_global))
+function CP:dump_incidents()
+	print(tab_dump(self.incident_table))
+end
+
+function CP:dump_name_lookup()
+	print(tab_dump(self.name_lookup))
+end
+
+function CP:dump_guid_lookup()
+	print(tab_dump(self.guid_lookup))
 end
 
 function CP:dump_udi()
