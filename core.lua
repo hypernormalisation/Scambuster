@@ -387,7 +387,7 @@ function CP:process_incident(user_index, case_data)
 end
 
 --=========================================================================================
--- Scanning and checking functionality.
+-- Unit checking functionality.
 --=========================================================================================
 function CP:is_unit_eligible(unit_token)
 	-- Function to get info using the specified unit_token and
@@ -408,114 +408,131 @@ end
 function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- Checks a unit against the lists.
 	-- Should only be called after we've confirmed the unit is a 
-	--  same-side faction unit who is not the player.
+	-- same-side faction unit who is not the player.
 	-- Requires one of unit_token or unit_guid.
 	-- The scan_context is required to tell the alerts system what scan
-	--  registered the unit. If a unit_token is given, it defaults to that.
-	--  If a unit token does not exist, as for whispers or invite
-	--  confirmations, it should be passed manually.
-
-	-- Internally set the scan vars
-	-- to avoid multiple API calls and passing lots of arguments
-	self.current_unit_guid = unit_guid or UnitGUID(unit_token)
-	self.current_unit_token = unit_token or false
-	self.current_scan_context = scan_context or unit_token
-	self.in_bg = UnitInBattleground("player")
-	local name, realm = select(6, GetPlayerInfoByGUID(self.current_unit_guid))
-	if realm == "" then
-		realm = self.realm_name
+	-- registered the unit. If a unit_token is given, it defaults to that.
+	-- If a unit token does not exist, as for whispers or invite
+	-- confirmations, it should be passed manually.
+	unit_guid = unit_guid or UnitGUID(unit_token)
+	local guid_match = false
+	local name_match = false
+	local name = nil
+	local realm = nil
+	local full_name = nil
+	local user_index = self.guid_lookup[unit_guid]
+	if user_index then
+		guid_match = true
+	else
+		name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+		full_name = name .. "-" .. realm
+		user_index = self.name_lookup[full_name]
+		if user_index then
+			name_match = true
+		end
 	end
-	self.current_unit_name = name
-	self.current_realm_name = realm
-	self.current_full_name = name.."-"..realm
-
-	-- Check against curated lists
-	local result = self:check_against_CLs()
-	if result then
-		self:raise_alert()
+	if (not guid_match) and (not name_match) then
 		return
 	end
-	CP:clear_scan_vars()
+
+	-- At this point we know we need to generate a report and alerts.
+	self.report = {}
+	self.report.context = scan_context or unit_token
+	self.report.unit_token = unit_token or false
+	self.report.full_name = full_name
+	self.report.name = name
+	self.report.user_index = user_index
+	if guid_match then
+		self:construct_report_from_guid()
+		return
+	end
+	self:construct_report_from_name()
 end
 
-function CP:check_against_CLs()
-	-- This function checks against the curated lists.
-	if self.in_bg then
-		return -- maybe we have some option to disable in BG
-	end
-
-	if self.curated_db_local[self.current_unit_name] == nil then
-		return false
-	end
-
-	-- Else we've found a match on the name.
-	-- Now check if any reported GUIDs from providers match the unit's GUID.
-	local t = self.curated_db_local[self.current_unit_name]
-	local guid_match = false
-	local guid_mismatch = false
-	local guid_ambiguous = false
-	local mismatch_table = {}
-	for provider, report in pairs(t.reports) do
-		if report.last_known_guid then
-			if report.last_known_guid == self.current_unit_guid then
-				guid_match = true
-			else
-				guid_mismatch = true
-				mismatch_table[provider] = report.last_known_guid
-			end
-		else
-			guid_ambiguous = true
-		end
-	end
-
-	-- Handle conditions where the reported guid from the provider does
-	-- not match the unit's guid. This indicates a likely mistake or false-positive.
-	if guid_mismatch then
-		for provider, guid in pairs(mismatch_table) do
-			local key = string.format(
-				"%s - %s - %s", self.current_full_name, provider, guid
-			)
-			-- Only do this once per unit mismatch so as not to spam the user.
-			if not self.db.global.false_positive_table[key] then
-				self:Print(
-					string.format(
-						"Warning: player %s is listed by %s, but with "..
-						"a mismatched GUID (%s recorded, %s in-game). This may imply a false "..
-						"positive where a scammer has renamed their toon, and someone new "..
-						"has taken their old name."..
-						" Please contact the provider of this list with this message's contents.",
-						self.current_full_name, provider, guid, self.current_unit_guid
-					)
-				)
-				self.db.global.false_positive_table[key] = true
-			end
-		end
-	end
-	-- If *only* a mismatch, return false
-	if guid_mismatch and (not guid_match) and (not guid_ambiguous) then
-		return false
-	end
-	-- If ambiguous, i.e. no definite guid match on any provider, set a 
-	-- partial_match flag.
-	if guid_ambiguous and not guid_match then
-		self.partial_match = true
-	end
-	self.current_alert_privilege = "curated"
-	return true
+function CP:construct_report_from_guid()
 end
 
-function CP:clear_scan_vars()
-	-- Clear the internal containers
-	-- not strictly necessary but if we assign one only 
-	-- in a conditional by accident it might be hard to debug.
-	self.current_unit_name = nil
-	self.current_realm_name = nil
-	self.current_full_name = nil
-	self.partial_match = nil
-	self.current_unit_guid = nil
-	self.current_scan_context = nil
-	self.current_alert_privilege = nil
+function CP:construct_report_from_name()
 end
+
+-- function CP:check_against_CLs()
+-- 	-- This function checks against the curated lists.
+-- 	if self.in_bg then
+-- 		return -- maybe we have some option to disable in BG
+-- 	end
+
+-- 	if self.curated_db_local[self.current_unit_name] == nil then
+-- 		return false
+-- 	end
+
+-- 	-- Else we've found a match on the name.
+-- 	-- Now check if any reported GUIDs from providers match the unit's GUID.
+-- 	local t = self.curated_db_local[self.current_unit_name]
+-- 	local guid_match = false
+-- 	local guid_mismatch = false
+-- 	local guid_ambiguous = false
+-- 	local mismatch_table = {}
+-- 	for provider, report in pairs(t.reports) do
+-- 		if report.last_known_guid then
+-- 			if report.last_known_guid == self.current_unit_guid then
+-- 				guid_match = true
+-- 			else
+-- 				guid_mismatch = true
+-- 				mismatch_table[provider] = report.last_known_guid
+-- 			end
+-- 		else
+-- 			guid_ambiguous = true
+-- 		end
+-- 	end
+
+-- 	-- Handle conditions where the reported guid from the provider does
+-- 	-- not match the unit's guid. This indicates a likely mistake or false-positive.
+-- 	if guid_mismatch then
+-- 		for provider, guid in pairs(mismatch_table) do
+-- 			local key = string.format(
+-- 				"%s - %s - %s", self.current_full_name, provider, guid
+-- 			)
+-- 			-- Only do this once per unit mismatch so as not to spam the user.
+-- 			if not self.db.global.false_positive_table[key] then
+-- 				self:Print(
+-- 					string.format(
+-- 						"Warning: player %s is listed by %s, but with "..
+-- 						"a mismatched GUID (%s recorded, %s in-game). This may imply a false "..
+-- 						"positive where a scammer has renamed their toon, and someone new "..
+-- 						"has taken their old name."..
+-- 						" Please contact the provider of this list with this message's contents.",
+-- 						self.current_full_name, provider, guid, self.current_unit_guid
+-- 					)
+-- 				)
+-- 				self.db.global.false_positive_table[key] = true
+-- 			end
+-- 		end
+-- 	end
+-- 	-- If *only* a mismatch, return false
+-- 	if guid_mismatch and (not guid_match) and (not guid_ambiguous) then
+-- 		return false
+-- 	end
+-- 	-- If ambiguous, i.e. no definite guid match on any provider, set a 
+-- 	-- partial_match flag.
+-- 	if guid_ambiguous and not guid_match then
+-- 		self.partial_match = true
+-- 	end
+-- 	self.current_alert_privilege = "curated"
+-- 	return true
+-- end
+
+-- function CP:clear_scan_vars()
+-- 	-- Clear the internal containers
+-- 	-- not strictly necessary but if we assign one only 
+-- 	-- in a conditional by accident it might be hard to debug.
+-- 	self.current_unit_name = nil
+-- 	self.current_realm_name = nil
+-- 	self.current_full_name = nil
+-- 	self.partial_match = nil
+-- 	self.current_unit_guid = nil
+-- 	self.current_scan_context = nil
+-- 	self.current_alert_privilege = nil
+-- end
 
 --=========================================================================================
 -- Alert functionality
