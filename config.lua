@@ -36,6 +36,18 @@ CP.defaults = {
 		use_group_request_scan = true,
 		use_trade_scan = true,
 		alert_lockout_seconds = 900,
+
+		-- Offence category exclusions
+		exclusions = {
+			dungeon = false,
+			raid = false,
+			trade = false,
+			dkp = false,
+			harassment = false,
+		},
+
+		-- Probation list alerts
+		probation_alerts = true,
     },
 }
 
