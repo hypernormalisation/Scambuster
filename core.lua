@@ -74,6 +74,14 @@ local context_pretty_table = {
 	whisper = "Whisper",
 }
 
+local incident_categories = {
+	["dungeon"] = "Dungeon Scam",
+	["raid"] = "Raid Scam",
+	["gdkp"] = "GDKP Scam",
+	["trade"] = "Trade Scam",
+	["harassment"] = "Harassment",
+}
+
 --=========================================================================================
 -- Helper funcs
 --=========================================================================================
@@ -212,8 +220,6 @@ function CP:build_database()
 	-- Tables for sanity checks on old aliases and guids.
 	self.previous_guid_table = {}
 	self.alias_table = {}
-	-- Table for providers, showing who is contributing what name for what guid.
-	self.provider_guidtoname_table = {}
 
 	-- Now iterate over the unprocessed case data and build up the db.
 	local pdb = self:get_provider_settings()
@@ -296,6 +302,7 @@ function CP:process_case_by_guid(case_data)
 	-- is given in the case data. If a user entry already exists for this
 	-- guid, it merges the information. Else, it creates a new entry.
 	local user_index = self.guid_lookup[case_data.guid]
+	self:Print(user_index)
 	local t = {}
 
 	if user_index then
@@ -316,10 +323,8 @@ function CP:process_case_by_guid(case_data)
 	end
 
 	-- Add name if not present to possible current names.
-	if not t.names[case_data.name] then
-		t.names[case_data.name] = true
-		-- Also add the lookup entry if we don't have it
-		self.name_lookup[case_data.name] = user_index
+	if not t.names[case_data.provider] then
+		t.names[case_data.provider] = case_data.name
 	end
 	-- Possible previous names
 	if case_data.previous_names then
@@ -340,14 +345,18 @@ function CP:process_case_by_guid(case_data)
 		end
 	end
 
-	-- If no user index, increment and add.
-	self.user_counter = self.user_counter + 1
-	user_index = self.user_counter
-	self.user_table[user_index] = t
+	-- If no user index, increment our counter, make a new table, and add it.
+	if not user_index then
+		self.user_counter = self.user_counter + 1
+		user_index = self.user_counter
+		self.user_table[user_index] = t
+	end
 
 	-- If necessary, add to the guid lookup table.
 	if not self.guid_lookup[case_data.guid] then
 		self.guid_lookup[case_data.guid] = user_index
+		-- self.guid_lookup[case_data.guid][user_index] = true --[case_data.provider] = case_data.name
+		-- self.guid_lookup[case_data.guid] = user_index
 	end
 
 	-- Now process the incident details.
@@ -366,7 +375,7 @@ function CP:process_case_by_name(case_data)
 	local t = {}
 	t.names = {}
 	t.realm = case_data.realm
-	t.names[case_data.name] = true
+	t.names[case_data.provider] = case_data.name
 
 	t.previous_names = {}
 	if case_data.previous_names then
@@ -466,7 +475,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	end
 
 	-- If we get here, the unit is listed. Now we should update the dynamic 
-	-- entry for this unit and figure out if we're on lockout.
+	-- entry for this unit.
 	if guid_match then
 		full_name = name .. "-" .. realm
 		name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
@@ -479,11 +488,28 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	r.guid_match = guid_match
 	self.report = r
 	self:update_UDI()
+	-- If on alert lockout for this unit, stop.
 	if not self:is_off_alert_lockout() then
 		return
 	end
 
+	-- Now we need to figure out how many "possible users" in the db match.
+	local matching_user_indices = {}
+	if guid_match then
+		matching_user_indices[self.guid_lookup[unit_guid]] = true
+	else
+		for i, _ in ipairs(self.name_lookup[full_name]) do
+			matching_user_indices[i] = true
+		end
+	end
 
+	local matching_user_tables = {}
+	for i, _ in ipairs(matching_user_tables) do
+		matching_user_tables[i] = self.user_table[i]
+	end
+
+	-- Check the alert level and categories are satisfied.
+	local u = self.user_table[user_index]
 
 
 	-- If we get here, we need to generate an alert.
@@ -493,7 +519,6 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 
 
 	-- At this point we know we need to generate a report.
-	local r = {}
 	r.context = scan_context or unit_token
 	r.unit_token = unit_token or false
 	r.name = name
@@ -506,6 +531,13 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		self:construct_report_from_name()
 	end
 	self:push_report()
+end
+
+function CP:check_name_matches_guid()
+	-- Function called when we trigger a match by guid
+	-- to ensure the name reported by each provider is still correct.
+	-- If it isn't, we need to alert the user.
+
 end
 
 function CP:construct_report_from_guid()
@@ -522,7 +554,11 @@ function CP:construct_report_from_guid()
 end
 
 function CP:construct_report_from_name()
-
+	local r = self.report
+	local name = select(6, GetPlayerInfoByGUID(r.guid))
+	for provider, name in self.user_table[r.user_index] do
+		
+	end
 end
 
 function CP:construct_incident_data()
@@ -566,6 +602,7 @@ function CP:update_UDI()
 		p.guild = false
 		p.level = false
 		p.last_alerted = false
+		p.name_mismatches = {}
 		udi[index] = p
 	end
 	local p = udi[index]
@@ -573,11 +610,21 @@ function CP:update_UDI()
 	-- Always update last seen
 	p.last_seen = GetTime()
 
-	-- If a guid match, check the detected name matches the name given by the provider.
-	-- if r.guid_match then
-	-- 	local name = select(6, GetPlayerInfoByGUID(r.guid))
-	-- 	if name ~=
-	-- end
+	-- At this point can also check the names 
+	if r.guid_match then
+		for provider, name in self.user_table[r.user_index].names do
+			if p.short_name ~= name and p.name_mismatches[name] == nil then
+				p.name_mismatches[provider] = name
+				local s = string.format(
+					"Warning: the list provider %s has an outdated name listed for the "..
+					"user %s. They are listed as % in the provider list, please contact "..
+					"the list provider to remedy this.",
+					provider, p.short_name, name
+				)
+				self:Print(s)
+			end
+		end
+	end
 
 	-- If we have a unit token, we can check current guild and level.
 	if r.unit_token then
