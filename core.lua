@@ -533,12 +533,15 @@ function CP:query_by_guid()
 		return
 	end
 
+	-- Ensure level satisfied.
 	if not self:meets_alert_level_requirement_by_guid() then
 		return
 	end
 
 	-- First figure out if we're on alert lockout for this unit.
-
+	if not self:meets_category_requirements_by_guid() then
+		return
+	end
 
 
 end
@@ -681,6 +684,49 @@ function CP:meets_alert_level_requirement_by_guid()
 		end
 	end
 	return false
+end
+
+function CP:return_viable_reports_by_guid()
+	-- Function to parse the incidents and return
+	-- a list of ones meeting the player's requirements for alerts.
+	local incident_table = {}
+	local counter = 0
+	local user = self.user_table[self.query.guid]
+	for i, _ in ipairs(user.incidents) do
+		local incident = self.incident_table[i]
+		if self:should_add_incident(incident) then
+			counter = counter + 1
+			incident_table[counter] = incident
+		end
+	end
+end
+
+function CP:should_add_incident(incident)
+	local conf = self:get_opts_db()
+	-- First probation level.
+	if not conf.probation_alerts then
+		if incident.level == 2 then
+			return false
+		end
+	end
+	-- Then category. If no category given by provider then proceed.
+	if incident.category == false then
+		return true
+	end
+	-- If category is given wrongly by provider, ignore it.
+	if not incident_categories[incident.category] then
+		return true
+	-- If category exists, check it's not excluded.
+	else
+		if conf.exclusions[incident] == false then
+			return true
+		end
+	end
+	return false
+end
+
+function CP:meets_category_requirements_by_guid()
+	local conf = self:get_opts_db()
 end
 
 --=========================================================================================
