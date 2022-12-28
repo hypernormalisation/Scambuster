@@ -29,6 +29,12 @@ local case_data_1 = {
         description = "Some description.",
         url = "some_other_url",
     },
+    [3] = {
+        name = "Swodger",
+        reason = "Raid Scam",
+        description = "Some description for incident with Swodger.",
+        url = "yet_another_url",
+    },
 }
 
 local test_bl_1 = {
@@ -36,6 +42,7 @@ local test_bl_1 = {
     provider = "Golemagg EU Discord",
     description = "Realm discord for the Golemagg EU realm.",
     url = "some_url",
+    merge_names = true,
     realm_data = {
         [realm] = case_data_1,
     }
