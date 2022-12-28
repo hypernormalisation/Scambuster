@@ -262,7 +262,7 @@ function CP:database_post_processing()
 		user.categories = categories
 	end
 
-	-- Now a table for name-based lookup.
+	-- Now name-based lookup, add to the lookup table.
 	for _, incident_table in pairs(self.name_to_incident_table) do
 		local categories = {}
 		local min_level = 2
@@ -319,7 +319,7 @@ end
 function CP:process_case_by_guid(case_data)
 	-- This function processes an individual case where a guid
 	-- is given in the case data. If a user entry already exists for this
-	-- guid, it merges the information. Else, it creates a new entry.
+	-- guid, it merges the information. Else, it creates a new user entry.
 	local exists = not (self.user_table[case_data.guid] == nil)
 	local t = {}
 	if exists then
@@ -419,84 +419,128 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- registered the unit. If a unit_token is given, it defaults to that.
 	-- If a unit token does not exist, as for whispers or invite
 	-- confirmations, it should be passed manually.
+
+	-- First check for a guid match.
 	unit_guid = unit_guid or UnitGUID(unit_token)
-	local guid_match = false
-	local name_match = false
-	local name = nil
-	local realm = nil
-	local full_name = nil
-	local user_table = self.user_table[unit_guid]
-	if user_index then
-		guid_match = true
+	if self.user_table[unit_guid] then
+		unit_token = unit_token or false
+		scan_context = unit_token or scan_context
+		self.query = {}  -- internal container to avoid passing args everywhere.
+		self.query.unit_token = unit_token
+		self.query.scan_context = scan_context
+		self.query.guid_match = true
+		self.query.guid = unit_guid
+		local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+		self.query.full_name = name .. "-" .. realm
+		self:query_by_guid()
+
+	-- Else here check for name matches.
 	else
-		name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
-		full_name = name .. "-" .. realm
-		user_index = self.name_lookup[full_name]
-		if user_index then
-			name_match = true
-		end
-	end
-	if (not guid_match) and (not name_match) then
-		return
+
 	end
 
-	-- If we get here, the unit is listed. Now we should update the dynamic 
-	-- entry for this unit.
-	if guid_match then
-		full_name = name .. "-" .. realm
-		name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
-	end
-	local r = {}
-	r.unit_token = unit_token or false
-	r.guid = unit_guid
-	r.full_name = full_name
-	r.name_short = name
-	r.guid_match = guid_match
-	self.report = r
+
+
+	-- local guid_match = false
+	-- local name_match = false
+	-- local name = nil
+	-- local realm = nil
+	-- local full_name = nil
+	-- local u = self.user_table[unit_guid]
+	-- if u then
+	-- 	guid_match = true
+	-- else
+	-- 	name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	-- 	full_name = name .. "-" .. realm
+	-- 	u = self.name_lookup[full_name]
+	-- 	if user_index then
+	-- 		name_match = true
+	-- 	end
+	-- end
+	-- if (not guid_match) and (not name_match) then
+	-- 	return
+	-- end
+
+	-- -- If we get here, the unit is listed. Now we should update the dynamic 
+	-- -- entry for this unit.
+	-- if guid_match then
+	-- 	full_name = name .. "-" .. realm
+	-- 	name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	-- end
+	-- local r = {}
+	-- r.unit_token = unit_token or false
+	-- r.guid = unit_guid
+	-- r.full_name = full_name
+	-- r.name_short = name
+	-- r.guid_match = guid_match
+	-- self.report = r
+	-- self:update_UDI()
+	-- -- If on alert lockout for this unit, stop.
+	-- if not self:is_off_alert_lockout() then
+	-- 	return
+	-- end
+
+	-- -- Now we need to figure out how many "possible users" in the db match.
+	-- local matching_user_indices = {}
+	-- if guid_match then
+	-- 	matching_user_indices[self.guid_lookup[unit_guid]] = true
+	-- else
+	-- 	for i, _ in ipairs(self.name_lookup[full_name]) do
+	-- 		matching_user_indices[i] = true
+	-- 	end
+	-- end
+
+	-- local matching_user_tables = {}
+	-- for i, _ in ipairs(matching_user_tables) do
+	-- 	matching_user_tables[i] = self.user_table[i]
+	-- end
+
+	-- -- Check the alert level and categories are satisfied.
+	-- local u = self.user_table[user_index]
+
+
+	-- -- If we get here, we need to generate an alert.
+	-- self.db.global.n_encounters = self.db.global.n_encounters + 1
+
+	-- -- Check if the incidents match the user's criteria for alerts.
+
+
+	-- -- At this point we know we need to generate a report.
+	-- r.context = scan_context or unit_token
+	-- r.unit_token = unit_token or false
+	-- r.name = name
+	-- r.user_index = user_index
+	-- r.related_incidents = {}
+	-- self.report = r
+	-- if guid_match then
+	-- 	self:construct_report_from_guid()
+	-- else
+	-- 	self:construct_report_from_name()
+	-- end
+	-- self:push_report()
+end
+
+function CP:query_by_guid()
+	-- This function gets called when the unit pings a guid match.
+	-- This function checks if a report should be raised, and 
+	-- then optionally pings an alert.
+
+	-- Update the UDI entry.
 	self:update_UDI()
-	-- If on alert lockout for this unit, stop.
+
+	-- Ensure we're off alert.
 	if not self:is_off_alert_lockout() then
 		return
 	end
 
-	-- Now we need to figure out how many "possible users" in the db match.
-	local matching_user_indices = {}
-	if guid_match then
-		matching_user_indices[self.guid_lookup[unit_guid]] = true
-	else
-		for i, _ in ipairs(self.name_lookup[full_name]) do
-			matching_user_indices[i] = true
-		end
+	if not self:meets_alert_level_requirement_by_guid() then
+		return
 	end
 
-	local matching_user_tables = {}
-	for i, _ in ipairs(matching_user_tables) do
-		matching_user_tables[i] = self.user_table[i]
-	end
-
-	-- Check the alert level and categories are satisfied.
-	local u = self.user_table[user_index]
+	-- First figure out if we're on alert lockout for this unit.
 
 
-	-- If we get here, we need to generate an alert.
-	self.db.global.n_encounters = self.db.global.n_encounters + 1
 
-	-- Check if the incidents match the user's criteria for alerts.
-
-
-	-- At this point we know we need to generate a report.
-	r.context = scan_context or unit_token
-	r.unit_token = unit_token or false
-	r.name = name
-	r.user_index = user_index
-	r.related_incidents = {}
-	self.report = r
-	if guid_match then
-		self:construct_report_from_guid()
-	else
-		self:construct_report_from_name()
-	end
-	self:push_report()
 end
 
 -- function CP:check_name_matches_guid()
@@ -544,26 +588,24 @@ function CP:update_UDI()
 	-- This function runs when we interact with a scammer and records some of their
 	-- information to persistant storage.
 	local udi = self:get_UDI()
-	local r = self.report
-
-	-- Use guid as index if we have it else name.
-	local index = r.full_name
-	if r.guid_match then
-		index = r.unit_guid
+	local q = self.query
+	local index = q.guid
+	if not q.guid_match then
+		index = q.full_name
 	end
 
 	-- If the entry doesn't exist, create it and populate the static fields.
 	if not udi[index] then
 		local p = {}
 		local loc_class, english_class, race, _, _, name = GetPlayerInfoByGUID(
-			r.guid
+			q.guid
 		)
 		p.class = loc_class
 		p.english_class = english_class
 		p.race = race
-		p.guid = r.guid
+		p.guid = q.guid
 		p.short_name = name
-		p.full_name = r.full_name
+		p.full_name = q.full_name
 		-- And placeholders for the dynamic fields.
 		p.guild = false
 		p.level = false
@@ -577,8 +619,8 @@ function CP:update_UDI()
 	p.last_seen = GetTime()
 
 	-- At this point can also check the names 
-	if r.guid_match then
-		for provider, name in self.user_table[r.user_index].names do
+	if q.guid_match then
+		for provider, name in self.user_table[q.user_index].names do
 			if p.short_name ~= name and p.name_mismatches[name] == nil then
 				p.name_mismatches[provider] = name
 				local s = string.format(
@@ -593,8 +635,8 @@ function CP:update_UDI()
 	end
 
 	-- If we have a unit token, we can check current guild and level.
-	if r.unit_token then
-		local token = r.unit_token
+	if q.unit_token then
+		local token = q.unit_token
 		p.level = UnitLevel(token)
 		p.guild = GetGuildInfo(token) or false
 	end
@@ -602,15 +644,15 @@ end
 
 function CP:is_off_alert_lockout()
 	-- This function determines if a given unit is on alert lockout.
-	-- Also sets the last_alerted variables.
-	-- Returns true or false.
+	-- Needs one of unit_guid or full_name. Prefers unit_guid.
+	-- Also sets the last_alerted variables. Returns true or false.
 	local udi = self:get_UDI()
-	local r = self.report
-	-- Use guid as index if we have it else name.
-	local index = r.full_name
-	if r.guid_match then
-		index = r.unit_guid
+	local q = self.query
+	local index = q.guid
+	if not q.guid_match then
+		index = q.full_name
 	end
+
 	if not udi[index].last_alerted then
 		udi[index].last_alerted = GetTime()
 		return true
@@ -623,6 +665,22 @@ function CP:is_off_alert_lockout()
 	end
 	udi[index].last_alerted = GetTime()
 	return true
+end
+
+function CP:meets_alert_level_requirement_by_guid()
+	-- Function to see if the current query meets the alert level requirement.
+	local conf = self:get_opts_db()
+	if conf.probation_alerts then
+		return true
+	end
+	local user = self.user_table[self.query.guid]
+	for i, _ in ipairs(user.incidents) do
+		local incident = self.incident_table[i]
+		if incident.level == 1 or incident.level == false then
+			return true
+		end
+	end
+	return false
 end
 
 --=========================================================================================
@@ -739,54 +797,6 @@ function CP:play_alert_sound()
 	local sound_file = LSM:Fetch('sound', k)
 	PlaySoundFile(sound_file)
 end
-
---=========================================================================================
--- User Dynamic Information funcs
---=========================================================================================
--- function CP:update_udi()
--- 	-- Function to update the user dynamic information table.
--- 	-- when we encounter a scammer in-game and can access their information.
--- 	local index = self.current_full_name
--- 	local t = self:get_UDI()
--- 	if t[index] == nil then
--- 		-- self:Print(string.format('Registering new info for %s', index))
--- 		t[index] = {}
--- 	else
--- 		-- self:Print(string.format('Updating info for %s', index))
--- 	end
--- 	local p = t[index]
-
--- 	-- If we have a unit token we can access finer info from, use that.
--- 	if self.current_unit_token then
--- 		local token = self.current_unit_token
--- 		p.class, p.english_class = UnitClass(token)
--- 		p.level = UnitLevel(token)
--- 		p.guild = GetGuildInfo(token) or false
--- 		p.race = UnitRace(token)
--- 		p.guid = self.current_unit_guid
--- 		p.last_seen = GetTime()
--- 		p.last_alerted = p.last_alerted or false
--- 		p.name_short = self.current_unit_name
-
--- 	-- Else we're accessing the unit's details via a GUID, which means less available
--- 	-- info via the API.
--- 	else
--- 		local loc_class, english_class, race, _, _, name = GetPlayerInfoByGUID(
--- 			self.current_unit_guid
--- 		)
--- 		p.class = loc_class
--- 		p.english_class = english_class
--- 		p.race = race
--- 		p.name_short = self.current_unit_name
--- 		p.last_seen = GetTime()
--- 		p.last_alerted = p.last_alerted or false
--- 		p.name_short = self.current_unit_name
--- 		-- Now the info we don't have access to, fall back on old info 
--- 		-- or if new entry put false.
--- 		p.guild = p.guild or false
--- 		p.level = p.level or false
--- 	end
--- end
 
 --=========================================================================================
 -- WoW API callbacks
