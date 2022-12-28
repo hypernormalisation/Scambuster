@@ -133,7 +133,7 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("dump_users", "dump_users")
 	self:RegisterChatCommand("dump_incidents", "dump_incidents")
 	self:RegisterChatCommand("dump_name_lookup", "dump_name_lookup")
-	self:RegisterChatCommand("dump_guid_lookup", "dump_guid_lookup")
+	-- self:RegisterChatCommand("dump_guid_lookup", "dump_guid_lookup")
 
 	self:RegisterChatCommand("dump_udi", "dump_udi")
 	self:RegisterChatCommand("clear_udi", "clear_udi")
@@ -208,15 +208,16 @@ function CP:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
 	self:Print("Building Cutpurse database...")
-	-- This is the table containing the flagged users.
-	self.user_counter = 0
+
+	-- A table mapping GUIDs to User info tables.
 	self.user_table = {}
-	-- This is the table containing the processed case data and its counter.
-	self.case_data_counter = 0
+	self.user_counter = 0
+
+	-- A table recording individual incidents.
 	self.incident_table = {}
-	-- These are the lookup tables for guid and name lookups.
-	self.guid_lookup = {}
-	self.name_lookup = {}
+	self.incident_counter = 0
+	self.name_to_incident_table = {}
+
 	-- Tables for sanity checks on old aliases and guids.
 	self.previous_guid_table = {}
 	self.alias_table = {}
@@ -228,11 +229,11 @@ function CP:build_database()
 		-- If no setting for this provider, assume enabled.
 		if pdb[n] == nil then
 			pdb[n] = {enabled = true}
-			self:process_case_data(l)
+			self:process_provider(l)
 		-- Else check for disabled lists and skip
 		else
 			if pdb[n].enabled then
-				self:process_case_data(l)
+				self:process_provider(l)
 			end
 		end
 	end
@@ -264,9 +265,10 @@ function CP:database_post_processing()
 	end
 end
 
-function CP:protected_process_case_data(l)
-	-- Wrap the parse of the unprocessed case data in a pcall.
-	local result = pcall(self.process_case_data, l)
+function CP:protected_process_provider(l)
+	-- Wrap the parse of the unprocessed provider data in a pcall
+	-- to catch errors.
+	local result = pcall(self.process_provider, l)
 	if not result then
 		local name = l.name or l.provider or "UNIDENTIFIED LIST"
 		self:Print(
@@ -281,18 +283,20 @@ function CP:protected_process_case_data(l)
 	end
 end
 
-function CP:process_case_data(l)
+function CP:process_provider(l)
 	-- Takes the given case data for a single provider and adds
 	-- it to the database.
 	for realm, realm_dict in pairs(l.realm_data) do
 		for _, case_data in pairs(realm_dict) do
 			case_data.realm = realm
 			case_data.provider = l.provider
+			case_data.full_name = case_data.name .. "-" .. realm
+			-- If we have a GUID, we ensure the case is linked
+			-- to a discrete user. If not, we just process the incident.
 			if case_data.guid then
 				self:process_case_by_guid(case_data)
-			else
-				self:process_case_by_name(case_data)
 			end
+			self:process_incident(case_data)
 		end
 	end
 end
@@ -301,12 +305,10 @@ function CP:process_case_by_guid(case_data)
 	-- This function processes an individual case where a guid
 	-- is given in the case data. If a user entry already exists for this
 	-- guid, it merges the information. Else, it creates a new entry.
-	local user_index = self.guid_lookup[case_data.guid]
-	self:Print(user_index)
+	local exists = not (self.user_table[case_data.guid] == nil)
 	local t = {}
-
-	if user_index then
-		t = self.user_table[user_index]
+	if exists then
+		t = self.user_table[case_data.guid]
 		if case_data.realm ~= t.realm then
 			self:Print(
 				"Warning: two lists have the same player matched by current guid, but "..
@@ -344,85 +346,33 @@ function CP:process_case_by_guid(case_data)
 			end
 		end
 	end
-
-	-- If no user index, increment our counter, make a new table, and add it.
-	if not user_index then
-		self.user_counter = self.user_counter + 1
-		user_index = self.user_counter
-		self.user_table[user_index] = t
-	end
-
-	-- If necessary, add to the guid lookup table.
-	if not self.guid_lookup[case_data.guid] then
-		self.guid_lookup[case_data.guid] = user_index
-		-- self.guid_lookup[case_data.guid][user_index] = true --[case_data.provider] = case_data.name
-		-- self.guid_lookup[case_data.guid] = user_index
-	end
-
-	-- Now process the incident details.
-	self:process_incident(user_index, case_data)
+	self.user_table[case_data.guid] = t
 end
 
-function CP:process_case_by_name(case_data)
-	-- This function processes an individual case where a name
-	-- and no GUID is given. Because we cannot guarantee two cases
-	-- with two names are the same person, we always generate a new user
-	-- table entry for each case.
-	-- Name lookups can point to multiple users.
-	self.user_counter = self.user_counter + 1
-	local user_index = self.user_counter
-	local full_name = case_data.name .. "-" .. case_data.realm
-	local t = {}
-	t.names = {}
-	t.realm = case_data.realm
-	t.names[case_data.provider] = case_data.name
-
-	t.previous_names = {}
-	if case_data.previous_names then
-		for _, alias in ipairs(case_data.previous_names) do
-			t.aliases[alias] = true
-			self.alias_table[alias] = case_data.name
-		end
-	end
-
-	if case_data.previous_guids then
-		for _, g in ipairs(case_data.previous_guids) do
-			t.previous_guids[g] = true
-			self.previous_guid_table[g] = {guid = case_data.guid}
-		end
-	end
-	t.previous_guids = {}
-	t.incidents = {}
-
-	-- Add to user table
-	self.user_table[user_index] = t
-
-	-- Now check if the name exists in the name_lookup table, and if so append.
-	-- Else create new table and fill entry.
-	if not self.name_lookup[full_name] then
-		self.name_lookup[full_name] = {}
-	end
-	self.name_lookup[full_name][user_index] = true
-
-	-- Now process the incident details.
-	self:process_incident(user_index, case_data)
-
-end
-
-function CP:process_incident(user_index, case_data)
-	-- Function to add the specific details of the case_data
-	-- that refer to a given incident to the incident_table.
-	self.case_data_counter = self.case_data_counter + 1
+function CP:process_incident(case_data)
+	-- Adds the incident to the db, ensuring it's linked
+	-- to either a guid or name in the lookup.
+	self.incident_counter = self.incident_counter + 1
 	local c = {}
 	c.description = case_data.description
 	c.url = case_data.url
 	c.category = case_data.category or false
 	c.level = case_data.level or 1
-	c.user = user_index
 	c.provider = case_data.provider
-	self.incident_table[self.case_data_counter] = c
-	-- Record a reference for this case in the user table.
-	self.user_table[user_index].incidents[self.case_data_counter] = true
+	c.class = case_data.class or false
+	self.incident_table[self.incident_counter] = c
+
+	-- Now we need to reference the incident.
+	-- If GUID-based, add the incident id to the user table.
+	if case_data.guid then
+		self.user_table[case_data.guid].incidents[self.incident_counter] = true
+	-- Else ensure the incident id is mapped to the name
+	else
+		if not self.name_to_incident_table[case_data.full_name] then
+			self.name_to_incident_table[case_data.full_name] = {}
+		end
+		self.name_to_incident_table[case_data.full_name][self.incident_counter] = true
+	end
 end
 
 --=========================================================================================
@@ -909,12 +859,12 @@ function CP:dump_incidents()
 end
 
 function CP:dump_name_lookup()
-	print(tab_dump(self.name_lookup))
+	print(tab_dump(self.name_to_incident_table))
 end
 
-function CP:dump_guid_lookup()
-	print(tab_dump(self.guid_lookup))
-end
+-- function CP:dump_guid_lookup()
+-- 	print(tab_dump(self.guid_lookup))
+-- end
 
 function CP:dump_udi()
 	print(tab_dump(self:get_UDI()))
