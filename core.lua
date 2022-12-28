@@ -38,6 +38,7 @@ local pcall = pcall
 local LE_PARTY_CATEGORY_HOME = LE_PARTY_CATEGORY_HOME
 
 local ipairs = ipairs
+local next = next
 local pairs = pairs
 local print = print
 local select = select
@@ -422,102 +423,36 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 
 	-- First check for a guid match.
 	unit_guid = unit_guid or UnitGUID(unit_token)
+	local guid_match = false
 	if self.user_table[unit_guid] then
-		unit_token = unit_token or false
-		scan_context = unit_token or scan_context
-		self.query = {}  -- internal container to avoid passing args everywhere.
-		self.query.unit_token = unit_token
-		self.query.scan_context = scan_context
-		self.query.guid_match = true
-		self.query.guid = unit_guid
-		local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
-		self.query.full_name = name .. "-" .. realm
-		self:query_by_guid()
-
-	-- Else here check for name matches.
-	else
-
+		guid_match = true
 	end
 
+	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	local full_name = name .. "-" .. realm
 
+	-- If not a guid match, check for name match. If no name match, unit
+	-- is not listed, so return.
+	if not guid_match then
+		if not self.name_to_incident_table[full_name] then
+			return
+		end
+	end
 
-	-- local guid_match = false
-	-- local name_match = false
-	-- local name = nil
-	-- local realm = nil
-	-- local full_name = nil
-	-- local u = self.user_table[unit_guid]
-	-- if u then
-	-- 	guid_match = true
-	-- else
-	-- 	name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
-	-- 	full_name = name .. "-" .. realm
-	-- 	u = self.name_lookup[full_name]
-	-- 	if user_index then
-	-- 		name_match = true
-	-- 	end
-	-- end
-	-- if (not guid_match) and (not name_match) then
-	-- 	return
-	-- end
+	unit_token = unit_token or false
+	scan_context = unit_token or scan_context
+	self.query = {}  -- internal container to avoid passing args everywhere.
+	self.query.unit_token = unit_token
+	self.query.scan_context = scan_context
+	self.query.guid_match = guid_match
+	self.query.guid = unit_guid
+	self.query.full_name = full_name
 
-	-- -- If we get here, the unit is listed. Now we should update the dynamic 
-	-- -- entry for this unit.
-	-- if guid_match then
-	-- 	full_name = name .. "-" .. realm
-	-- 	name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
-	-- end
-	-- local r = {}
-	-- r.unit_token = unit_token or false
-	-- r.guid = unit_guid
-	-- r.full_name = full_name
-	-- r.name_short = name
-	-- r.guid_match = guid_match
-	-- self.report = r
-	-- self:update_UDI()
-	-- -- If on alert lockout for this unit, stop.
-	-- if not self:is_off_alert_lockout() then
-	-- 	return
-	-- end
-
-	-- -- Now we need to figure out how many "possible users" in the db match.
-	-- local matching_user_indices = {}
-	-- if guid_match then
-	-- 	matching_user_indices[self.guid_lookup[unit_guid]] = true
-	-- else
-	-- 	for i, _ in ipairs(self.name_lookup[full_name]) do
-	-- 		matching_user_indices[i] = true
-	-- 	end
-	-- end
-
-	-- local matching_user_tables = {}
-	-- for i, _ in ipairs(matching_user_tables) do
-	-- 	matching_user_tables[i] = self.user_table[i]
-	-- end
-
-	-- -- Check the alert level and categories are satisfied.
-	-- local u = self.user_table[user_index]
-
-
-	-- -- If we get here, we need to generate an alert.
-	-- self.db.global.n_encounters = self.db.global.n_encounters + 1
-
-	-- -- Check if the incidents match the user's criteria for alerts.
-
-
-	-- -- At this point we know we need to generate a report.
-	-- r.context = scan_context or unit_token
-	-- r.unit_token = unit_token or false
-	-- r.name = name
-	-- r.user_index = user_index
-	-- r.related_incidents = {}
-	-- self.report = r
-	-- if guid_match then
-	-- 	self:construct_report_from_guid()
-	-- else
-	-- 	self:construct_report_from_name()
-	-- end
-	-- self:push_report()
+	if guid_match then
+		self:query_by_guid()
+	else
+		self:query_by_name()
+	end
 end
 
 function CP:query_by_guid()
@@ -533,58 +468,18 @@ function CP:query_by_guid()
 		return
 	end
 
-	-- Ensure level satisfied.
-	if not self:meets_alert_level_requirement_by_guid() then
+	-- Now get the list of valid incidents matching our requirements.
+	-- If empty, we're done.
+	local incident_table = self:return_viable_reports_by_guid()
+	if next(incident_table) == nil then
 		return
 	end
 
-	-- First figure out if we're on alert lockout for this unit.
-	if not self:meets_category_requirements_by_guid() then
-		return
-	end
-
+	-- If we have incidents, generate a breakdown.
 
 end
 
--- function CP:check_name_matches_guid()
--- 	-- Function called when we trigger a match by guid
--- 	-- to ensure the name reported by each provider is still correct.
--- 	-- If it isn't, we need to alert the user.
-
--- end
-
--- function CP:construct_report_from_guid()
--- 	local r = self.report
--- 	local t = self.guid_lookup[r.user_index]
--- 	-- Check the name matches records.
--- 	local name_match = false
--- 	for name, _ in pairs(t.names) do
--- 		if r.name == name then
--- 			name_match = true
--- 		end
--- 	end
--- 	r.name_match = false
--- end
-
--- function CP:construct_report_from_name()
--- 	local r = self.report
--- 	local name = select(6, GetPlayerInfoByGUID(r.guid))
--- 	for provider, name in self.user_table[r.user_index] do
-		
--- 	end
--- end
-
-function CP:construct_incident_data()
-	local r = self.report
-	local t = self.guid_lookup[r.user_index]
-	local incident_indices = t.incidents
-	for index, _ in pairs(incident_indices) do
-		local i = self.incident_table[index]
-
-	end
-end
-
-function CP:push_report()
+function CP:query_by_name()
 end
 
 function CP:update_UDI()
@@ -699,6 +594,7 @@ function CP:return_viable_reports_by_guid()
 			incident_table[counter] = incident
 		end
 	end
+	return incident_table
 end
 
 function CP:should_add_incident(incident)
