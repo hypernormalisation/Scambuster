@@ -244,13 +244,12 @@ function CP:database_post_processing()
 	-- This function runs some post-processing on the database
 	-- to correlate the users with summaries of the incidents they
 	-- are involved with.
-	local user_index = 1
-	while self.user_table[user_index] do
-		local t = self.user_table[user_index]
-		local min_level = 2
+
+	-- First the users who have guids, directly add to the table.
+	for _, user in pairs(self.user_table) do
 		local categories = {}
-		local incident_ids = t.incidents
-		for incident_index, _ in ipairs(incident_ids) do
+		local min_level = 2
+		for incident_index, _ in ipairs(user.incidents) do
 			local i = self.incident_table[incident_index]
 			if i.level < min_level then
 				min_level = i.level
@@ -259,9 +258,25 @@ function CP:database_post_processing()
 				categories[i.category] = true
 			end
 		end
-		t.min_level = min_level
-		t.categories = categories
-		user_index = user_index + 1
+		user.min_level = min_level
+		user.categories = categories
+	end
+
+	-- Now a table for name-based lookup.
+	for _, incident_table in pairs(self.name_to_incident_table) do
+		local categories = {}
+		local min_level = 2
+		for incident_index, _ in ipairs(incident_table.incidents) do
+			local i = self.incident_table[incident_index]
+			if i.level < min_level then
+				min_level = i.level
+			end
+			if i.category then
+				categories[i.category] = true
+			end
+		end
+		incident_table.min_level = min_level
+		incident_table.categories = categories
 	end
 end
 
@@ -370,8 +385,9 @@ function CP:process_incident(case_data)
 	else
 		if not self.name_to_incident_table[case_data.full_name] then
 			self.name_to_incident_table[case_data.full_name] = {}
+			self.name_to_incident_table[case_data.full_name].incidents = {}
 		end
-		self.name_to_incident_table[case_data.full_name][self.incident_counter] = true
+		self.name_to_incident_table[case_data.full_name].incidents[self.incident_counter] = true
 	end
 end
 
@@ -409,7 +425,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	local name = nil
 	local realm = nil
 	local full_name = nil
-	local user_index = self.guid_lookup[unit_guid]
+	local user_table = self.user_table[unit_guid]
 	if user_index then
 		guid_match = true
 	else
@@ -483,33 +499,33 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	self:push_report()
 end
 
-function CP:check_name_matches_guid()
-	-- Function called when we trigger a match by guid
-	-- to ensure the name reported by each provider is still correct.
-	-- If it isn't, we need to alert the user.
+-- function CP:check_name_matches_guid()
+-- 	-- Function called when we trigger a match by guid
+-- 	-- to ensure the name reported by each provider is still correct.
+-- 	-- If it isn't, we need to alert the user.
 
-end
+-- end
 
-function CP:construct_report_from_guid()
-	local r = self.report
-	local t = self.guid_lookup[r.user_index]
-	-- Check the name matches records.
-	local name_match = false
-	for name, _ in pairs(t.names) do
-		if r.name == name then
-			name_match = true
-		end
-	end
-	r.name_match = false
-end
+-- function CP:construct_report_from_guid()
+-- 	local r = self.report
+-- 	local t = self.guid_lookup[r.user_index]
+-- 	-- Check the name matches records.
+-- 	local name_match = false
+-- 	for name, _ in pairs(t.names) do
+-- 		if r.name == name then
+-- 			name_match = true
+-- 		end
+-- 	end
+-- 	r.name_match = false
+-- end
 
-function CP:construct_report_from_name()
-	local r = self.report
-	local name = select(6, GetPlayerInfoByGUID(r.guid))
-	for provider, name in self.user_table[r.user_index] do
+-- function CP:construct_report_from_name()
+-- 	local r = self.report
+-- 	local name = select(6, GetPlayerInfoByGUID(r.guid))
+-- 	for provider, name in self.user_table[r.user_index] do
 		
-	end
-end
+-- 	end
+-- end
 
 function CP:construct_incident_data()
 	local r = self.report
