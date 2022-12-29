@@ -397,7 +397,7 @@ end
 --=========================================================================================
 function CP:is_unit_eligible(unit_token)
 	-- Function to get info using the specified unit_token and
-	-- verify the unit in question is another same-faction player
+	-- verify the unit in question is another same-faction player.
 	if not UnitIsPlayer(unit_token) then
 		return false
 	end
@@ -413,8 +413,6 @@ end
 
 function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- Checks a unit against the lists.
-	-- Should only be called after we've confirmed the unit is a 
-	-- same-side faction unit who is not the player.
 	-- Requires one of unit_token or unit_guid.
 	-- The scan_context is required to tell the alerts system what scan
 	-- registered the unit. If a unit_token is given, it defaults to that.
@@ -439,6 +437,8 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		end
 	end
 
+	-- By now we know the person is listed. So populate the query table
+	-- and update the dynamic info for the unit.
 	unit_token = unit_token or false
 	scan_context = unit_token or scan_context
 	self.query = {}  -- internal container to avoid passing args everywhere.
@@ -447,39 +447,90 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	self.query.guid_match = guid_match
 	self.query.guid = unit_guid
 	self.query.full_name = full_name
-
-	if guid_match then
-		self:query_by_guid()
-	else
-		self:query_by_name()
-	end
-end
-
-function CP:query_by_guid()
-	-- This function gets called when the unit pings a guid match.
-	-- This function checks if a report should be raised, and 
-	-- then optionally pings an alert.
-
-	-- Update the UDI entry.
 	self:update_UDI()
 
-	-- Ensure we're off alert.
-	if not self:is_off_alert_lockout() then
-		return
-	end
+	-- Check we're not on report lockout for this unit.
+	if not self:is_off_alert_lockout() then return end
 
-	-- Now get the list of valid incidents matching our requirements.
-	-- If empty, we're done.
-	local incident_table = self:return_viable_reports_by_guid()
+	-- Fetch incidents that meet addon user's requirements.
+	local incident_table = self:return_viable_reports()
 	if next(incident_table) == nil then
 		return
 	end
 
-	-- If we have incidents, generate a breakdown.
+
 
 end
 
-function CP:query_by_name()
+function CP:is_off_alert_lockout()
+	-- This function determines if a given unit is on alert lockout.
+	-- Also sets the last_alerted variables if off lockout. Returns true or false.
+	local udi = self:get_UDI()
+	local q = self.query
+	local index = q.guid
+	if not q.guid_match then
+		index = q.full_name
+	end
+
+	if not udi[index].last_alerted then
+		udi[index].last_alerted = GetTime()
+		return true
+	end
+	local delta = self:get_opts_db().alert_lockout_seconds
+	if GetTime() < delta + udi[index].last_alerted then
+		local time_until = delta + udi[index].last_alerted - GetTime()
+		self:Print(string.format("locked out for another %f seconds", time_until))
+		return false
+	end
+	udi[index].last_alerted = GetTime()
+	return true
+end
+
+function CP:return_viable_reports()
+	-- Function to parse the incidents and return
+	-- a list of ones meeting the player's requirements for alerts.
+	local incident_table = {}
+	local counter = 0
+	local incident_matches = nil
+	if self.query.guid_match then
+		incident_matches = self.user_table[self.query.guid].incidents
+	else
+		incident_matches = self.name_to_incident_table[self.query.full_name].incidents
+	end
+	for i, _ in ipairs(incident_matches) do
+		local incident = self.incident_table[i]
+		if self:should_add_incident(incident) then
+			counter = counter + 1
+			incident_table[counter] = incident
+		end
+	end
+	return incident_table
+end
+
+function CP:should_add_incident(incident)
+	-- Checks the given incident meets the user's requirements
+	-- for generating an alert.
+	local conf = self:get_opts_db()
+	-- First probation level.
+	if not conf.probation_alerts then
+		if incident.level == 2 then
+			return false
+		end
+	end
+	-- Then category. If no category given by provider then proceed.
+	if incident.category == false then
+		return true
+	end
+	-- If category is given wrongly by provider, ignore it.
+	if not incident_categories[incident.category] then
+		return true
+	-- If category exists, check it's not excluded.
+	else
+		if conf.exclusions[incident] == false then
+			return true
+		end
+	end
+	return false
 end
 
 function CP:update_UDI()
@@ -538,91 +589,6 @@ function CP:update_UDI()
 		p.level = UnitLevel(token)
 		p.guild = GetGuildInfo(token) or false
 	end
-end
-
-function CP:is_off_alert_lockout()
-	-- This function determines if a given unit is on alert lockout.
-	-- Needs one of unit_guid or full_name. Prefers unit_guid.
-	-- Also sets the last_alerted variables. Returns true or false.
-	local udi = self:get_UDI()
-	local q = self.query
-	local index = q.guid
-	if not q.guid_match then
-		index = q.full_name
-	end
-
-	if not udi[index].last_alerted then
-		udi[index].last_alerted = GetTime()
-		return true
-	end
-	local delta = self:get_opts_db().alert_lockout_seconds
-	if GetTime() < delta + udi[index].last_alerted then
-		local time_until = delta + udi[index].last_alerted - GetTime()
-		self:Print(string.format("locked out for another %f seconds", time_until))
-		return false
-	end
-	udi[index].last_alerted = GetTime()
-	return true
-end
-
-function CP:meets_alert_level_requirement_by_guid()
-	-- Function to see if the current query meets the alert level requirement.
-	local conf = self:get_opts_db()
-	if conf.probation_alerts then
-		return true
-	end
-	local user = self.user_table[self.query.guid]
-	for i, _ in ipairs(user.incidents) do
-		local incident = self.incident_table[i]
-		if incident.level == 1 or incident.level == false then
-			return true
-		end
-	end
-	return false
-end
-
-function CP:return_viable_reports_by_guid()
-	-- Function to parse the incidents and return
-	-- a list of ones meeting the player's requirements for alerts.
-	local incident_table = {}
-	local counter = 0
-	local user = self.user_table[self.query.guid]
-	for i, _ in ipairs(user.incidents) do
-		local incident = self.incident_table[i]
-		if self:should_add_incident(incident) then
-			counter = counter + 1
-			incident_table[counter] = incident
-		end
-	end
-	return incident_table
-end
-
-function CP:should_add_incident(incident)
-	local conf = self:get_opts_db()
-	-- First probation level.
-	if not conf.probation_alerts then
-		if incident.level == 2 then
-			return false
-		end
-	end
-	-- Then category. If no category given by provider then proceed.
-	if incident.category == false then
-		return true
-	end
-	-- If category is given wrongly by provider, ignore it.
-	if not incident_categories[incident.category] then
-		return true
-	-- If category exists, check it's not excluded.
-	else
-		if conf.exclusions[incident] == false then
-			return true
-		end
-	end
-	return false
-end
-
-function CP:meets_category_requirements_by_guid()
-	local conf = self:get_opts_db()
 end
 
 --=========================================================================================
