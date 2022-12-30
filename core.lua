@@ -168,9 +168,9 @@ function CP:OnEnable()
 	-- if opts_db.use_whisper_scan then
 	-- 	self:RegisterEvent("CHAT_MSG_WHISPER")
 	-- end
-	-- if opts_db.use_target_scan then
-	-- 	self:RegisterEvent("PLAYER_TARGET_CHANGED")
-	-- end
+	if opts_db.use_target_scan then
+		self:RegisterEvent("PLAYER_TARGET_CHANGED")
+	end
 	-- if opts_db.use_trade_scan then
 	-- 	self:RegisterEvent("TRADE_SHOW")
 	-- end
@@ -458,7 +458,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		return
 	end
 
-
+	-- At this point we have to generate an alert.
 
 end
 
@@ -569,7 +569,7 @@ function CP:update_UDI()
 
 	-- At this point can also check the names 
 	if q.guid_match then
-		for provider, name in self.user_table[q.user_index].names do
+		for provider, name in pairs(self.user_table[index].names) do
 			if p.short_name ~= name and p.name_mismatches[name] == nil then
 				p.name_mismatches[provider] = name
 				local s = string.format(
@@ -602,7 +602,7 @@ function CP:raise_alert()
 	local d = self:get_opts_db().alert_lockout_seconds
 	if last_alerted then
 		if GetTime() < d + last_alerted then
-			local time_until = d + last_alerted - GetTime()
+			-- local time_until = d + last_alerted - GetTime()
 			-- self:Print(string.format("locked out for another %f seconds", time_until))
 			return
 		end
