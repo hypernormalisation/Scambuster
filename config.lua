@@ -37,6 +37,10 @@ CP.defaults = {
 		use_trade_scan = true,
 		alert_lockout_seconds = 900,
 
+		-- Report generation settings
+		require_guid_match = false,
+		match_all_incidents = true,  -- when GUID match, also present name-matched incidents
+
 		-- Offence category exclusions
 		exclusions = {
 			dungeon = false,
