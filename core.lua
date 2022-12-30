@@ -418,20 +418,21 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- registered the unit. If a unit_token is given, it defaults to that.
 	-- If a unit token does not exist, as for whispers or invite
 	-- confirmations, it should be passed manually.
-
+	local conf = self:get_opts_db()
 	-- First check for a guid match.
 	unit_guid = unit_guid or UnitGUID(unit_token)
 	local guid_match = false
 	if self.user_table[unit_guid] then
 		guid_match = true
 	end
-
 	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
 	local full_name = name .. "-" .. realm
 
 	-- If not a guid match, check for name match. If no name match, unit
 	-- is not listed, so return.
+	-- self:Print("GUID match: " .. tostring(guid_match))
 	if not guid_match then
+		if conf.require_guid_match then return end
 		if not self.name_to_incident_table[full_name] then
 			return
 		end
@@ -453,12 +454,26 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	if not self:is_off_alert_lockout() then return end
 
 	-- Fetch incidents that meet addon user's requirements.
-	local incident_table = self:return_viable_reports()
-	if next(incident_table) == nil then
-		return
+	-- conf.match_all_incidents
+	local guid_match_incidents = {}
+	local name_match_incidents = {}
+	if guid_match then
+		guid_match_incidents = self:return_viable_incidents()
 	end
 
-	-- At this point we have to generate an alert.
+	if (not guid_match) or conf.match_all_incidents then
+		name_match_incidents = self:return_viable_incidents(true)
+	end
+
+	local found_guid_matches = next(guid_match_incidents) ~= nil
+	local found_name_matches = next(name_match_incidents) ~= nil
+	if (not found_guid_matches) and (not found_name_matches) then
+		self:Print("No viable matches")
+		return
+	 end
+	self:Print("Found some matching incidents.")
+	self.query.name_incidents = found_name_matches
+	self.query.guid_incidents = found_guid_matches
 
 end
 
@@ -486,19 +501,26 @@ function CP:is_off_alert_lockout()
 	return true
 end
 
-function CP:return_viable_reports()
+function CP:return_viable_incidents(force_name_match)
 	-- Function to parse the incidents and return
 	-- a list of ones meeting the player's requirements for alerts.
+	force_name_match = force_name_match or false
 	local incident_table = {}
 	local counter = 0
 	local incident_matches = nil
-	if self.query.guid_match then
+	if not force_name_match then
 		incident_matches = self.user_table[self.query.guid].incidents
 	else
+		if self.name_to_incident_table[self.query.full_name] == nil then
+			return incident_table
+		end
 		incident_matches = self.name_to_incident_table[self.query.full_name].incidents
 	end
-	for i, _ in ipairs(incident_matches) do
+	-- print(tab_dump(incident_matches))
+	for i, _ in pairs(incident_matches) do
 		local incident = self.incident_table[i]
+		print(i)
+		print(incident.description)
 		if self:should_add_incident(incident) then
 			counter = counter + 1
 			incident_table[counter] = incident
@@ -517,10 +539,12 @@ function CP:should_add_incident(incident)
 			return false
 		end
 	end
+	-- print('a')
 	-- Then category. If no category given by provider then proceed.
 	if incident.category == false then
 		return true
 	end
+	-- print('b')
 	-- If category is given wrongly by provider, ignore it.
 	if not incident_categories[incident.category] then
 		return true
