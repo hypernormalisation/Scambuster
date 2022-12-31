@@ -36,6 +36,7 @@ local GetGuildInfo = GetGuildInfo
 local pcall = pcall
 
 local LE_PARTY_CATEGORY_HOME = LE_PARTY_CATEGORY_HOME
+local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 
 local ipairs = ipairs
 local next = next
@@ -65,7 +66,6 @@ function CP:colorise_name(name, class)
 	return "|"..cc..name.."|r"
 end
 
-
 local context_pretty_table = {
 	mouseover = "Mouseover",
 	target = "Target",
@@ -81,6 +81,20 @@ local incident_categories = {
 	["gdkp"] = "GDKP Scam",
 	["trade"] = "Trade Scam",
 	["harassment"] = "Harassment",
+}
+
+-- Necessary for localization due to the lower case classes being localized.
+local english_locale_classes = {
+	DEATHKNIGHT = "Death Knight",
+	DRUID = "Druid",
+	HUNTER = "Hunter",
+	MAGE = "Mage",
+	PALADIN = "Paladin",
+	PRIEST = "Priest",
+	ROGUE = "Rogue",
+	SHAMAN = "Shaman",
+	WARRIOR = "Warrior",
+	WARLOCK = "Warlock",
 }
 
 --=========================================================================================
@@ -162,28 +176,28 @@ function CP:OnEnable()
 
 	-- Enable the requisite events here according to settings.
 	local opts_db = self:get_opts_db()
-	-- if opts_db.use_mouseover_scan then
-	-- 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-	-- end
-	-- if opts_db.use_whisper_scan then
-	-- 	self:RegisterEvent("CHAT_MSG_WHISPER")
-	-- end
+	if opts_db.use_mouseover_scan then
+		self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+	end
+	if opts_db.use_whisper_scan then
+		self:RegisterEvent("CHAT_MSG_WHISPER")
+	end
 	if opts_db.use_target_scan then
 		self:RegisterEvent("PLAYER_TARGET_CHANGED")
 	end
-	-- if opts_db.use_trade_scan then
-	-- 	self:RegisterEvent("TRADE_SHOW")
-	-- end
-	-- if opts_db.use_group_scan then
-	-- 	self:RegisterEvent("GROUP_ROSTER_UPDATE")
-	-- end
-	-- if opts_db.use_group_request_scan then
-	-- 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
-	-- end
-	-- -- Only if in a group, run the group scan callback.
-	-- if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
-	-- 	self:GROUP_ROSTER_UPDATE()
-	-- end
+	if opts_db.use_trade_scan then
+		self:RegisterEvent("TRADE_SHOW")
+	end
+	if opts_db.use_group_scan then
+		self:RegisterEvent("GROUP_ROSTER_UPDATE")
+	end
+	if opts_db.use_group_request_scan then
+		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+	end
+	-- Only if in a group, run the group scan callback.
+	if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+		self:GROUP_ROSTER_UPDATE()
+	end
 
 	-- Welcome message if requested
 	if opts_db.welcome_message then
@@ -200,7 +214,7 @@ function CP:register_case_data(data)
 	-- Function to be called in provider extentions upon receiving
 	-- the CUTPURSE_LIST_CONSTRUCTION callback.
 	-- This function takes a table of case data vars with integer keys.
-	self:Print("CALL TO REGISTER A LIST")
+	-- self:Print("CALL TO REGISTER A LIST")
 	self.provider_counter = self.provider_counter + 1
 	self.unprocessed_case_data[self.provider_counter] = data
 end
@@ -208,7 +222,7 @@ end
 function CP:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
-	self:Print("Building Cutpurse database...")
+	-- self:Print("Building Cutpurse database...")
 
 	-- A table mapping GUIDs to User info tables.
 	self.user_table = {}
@@ -460,7 +474,6 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	if guid_match then
 		guid_match_incidents = self:return_viable_incidents()
 	end
-
 	if (not guid_match) or conf.match_all_incidents then
 		name_match_incidents = self:return_viable_incidents(true)
 	end
@@ -468,12 +481,13 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	local found_guid_matches = next(guid_match_incidents) ~= nil
 	local found_name_matches = next(name_match_incidents) ~= nil
 	if (not found_guid_matches) and (not found_name_matches) then
-		self:Print("No viable matches")
+		-- self:Print("No viable matches")
 		return
-	 end
-	self:Print("Found some matching incidents.")
+	end
+	-- self:Print("Found some matching incidents.")
 	self.query.name_incidents = found_name_matches
 	self.query.guid_incidents = found_guid_matches
+	self:raise_alert()
 
 end
 
@@ -494,7 +508,7 @@ function CP:is_off_alert_lockout()
 	local delta = self:get_opts_db().alert_lockout_seconds
 	if GetTime() < delta + udi[index].last_alerted then
 		local time_until = delta + udi[index].last_alerted - GetTime()
-		self:Print(string.format("locked out for another %f seconds", time_until))
+		-- self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
 	udi[index].last_alerted = GetTime()
@@ -519,8 +533,8 @@ function CP:return_viable_incidents(force_name_match)
 	-- print(tab_dump(incident_matches))
 	for i, _ in pairs(incident_matches) do
 		local incident = self.incident_table[i]
-		print(i)
-		print(incident.description)
+		-- print(i)
+		-- print(incident.description)
 		if self:should_add_incident(incident) then
 			counter = counter + 1
 			incident_table[counter] = incident
@@ -559,7 +573,7 @@ end
 
 function CP:update_UDI()
 	-- This function runs when we interact with a scammer and records some of their
-	-- information to persistant storage.
+	-- information to persistant storage (User Dynamic Information table).
 	local udi = self:get_UDI()
 	local q = self.query
 	local index = q.guid
@@ -574,6 +588,7 @@ function CP:update_UDI()
 			q.guid
 		)
 		p.class = loc_class
+		p.class_english_locale = english_locale_classes[english_class]
 		p.english_class = english_class
 		p.race = race
 		p.guid = q.guid
@@ -618,109 +633,30 @@ end
 --=========================================================================================
 -- Alert functionality
 --=========================================================================================
-function CP:raise_alert()
-	self:update_udi()
-	-- Figure out if we're still on lockout for this player
+function CP:print_chat_alert()
+
+	local q = self.query
 	local udi = self:get_UDI()
-	local last_alerted = udi[self.current_full_name]["last_alerted"]
-	local d = self:get_opts_db().alert_lockout_seconds
-	if last_alerted then
-		if GetTime() < d + last_alerted then
-			-- local time_until = d + last_alerted - GetTime()
-			-- self:Print(string.format("locked out for another %f seconds", time_until))
-			return
-		end
+	local u = udi[q.guid]
+	if u == nil then
+		u = udi[q.full_name]
 	end
-	udi[self.current_full_name]["last_alerted"] = GetTime()
-	local c_db = self.curated_db_global[self.current_full_name]
 
-	-- Parse reports to eliminate guid mismatches
-	local reports = c_db['reports']
-	local reports_parsed = {}
-	for provider, report in pairs(reports) do
-		-- Catch mismatched guids and prevent printing.		
-		if report.last_known_guid ~= false and report.last_known_guid ~= self.current_unit_guid then
-			-- do nothing
-		else
-			reports_parsed[provider] = report
-		end
-	end
-	local context_pretty = context_pretty_table[self.current_scan_context]
-	local u = self:get_UDI()[self.current_full_name]
-
-	local t = {
-		name = self.current_full_name,
-		name_short = self.current_unit_name,
-		guid = self.current_unit_guid,
-		context = self.current_scan_context,
-		context_pretty = context_pretty,
-		partial = self.partial_match,
-		reports = reports_parsed,
-		udi = u,
-	}
-
-	-- Generate a summary message for the scan	
-	local s1 = ""
+	-- First the player details.
+	local s1 = "Encountered a listed player: "
 	if u.level and u.guild then
-		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
-		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
-		string.format(" from the guild %s detected via ", u.guild)..
-		t.context_pretty .. " scan."
-	elseif t.udi.level then
-		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
-		string.format(", lvl %.0f %s %s", u.level, u.race, u.class) ..
-		" detected via ".. t.context_pretty .. " scan."
-	elseif t.udi.guild then
-		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
-		string.format(", %s %s", u.race, u.class) ..
-		string.format(" from the guild %s detected via ", u.guild)..
-		t.context .. " scan."
+		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, u.short_name, u.guild)
+	elseif u.level then
+		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, u.short_name)
+	elseif u.guild then
+		s1 = s1 .. string.format("%s %s from [%s]", u.race, u.class_english_locale, u.short_name)
+
 	else
-		s1 = "Flagged player " .. self:colorise_name(t.name_short, u.english_class)..
-		string.format(", %s %s", u.race, u.class) ..
-		" detected via ".. t.context .. " scan."
+		s1 = s1 .. string.format("%s %s", u.class_english_locale, u.short_name)
 	end
-	t.summary = s1
+	s1 = s1 .. string.format(", detected via %s scan", q.scan_context)
+	self:Print(s1)
 
-	-- Generate guid match summary
-	local s2 = ""
-
-	-- Handle stats counters
-	self.db.global.n_alerts = self.db.global.n_alerts + 1
-	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
-	self:post_alert(t)
-end
-
-function CP:post_alert(t)
-	-- Func to take a generated alert and post it, triggering the configured
-	-- alerts behaviour.
-	self.pending_alerts[self.alert_counter] = t
-	self.alert_counter = self.alert_counter + 1
-	local db = self:get_opts_db()
-	if db.use_alert_sound then
-		self:play_alert_sound()
-	end
-	if db.use_chat_alert then
-		self:display_chat_alert(t)
-	end
-end
-
-function CP:display_chat_alert(t)
-	-- Function to generate and print an alert.
-	self:Print(t.summary)
-	for provider, report in pairs(t.reports) do
-		local reason = report.reason
-		local evidence = report.evidence
-		local last_known_guid = report.last_known_guid
-		self:Print(string.format("%s has listed this player for:", provider))
-		print(" - reason : " .. reason)
-		print(" - case url : " .. evidence)
-		if not report.last_known_guid then
-			print(" - partial match, no guid supplied by provider.")
-		elseif last_known_guid == self.current_unit_guid then
-			print(" - full match with provider's guid: " .. last_known_guid)
-		end
-	end
 end
 
 function CP:play_alert_sound()
@@ -728,6 +664,23 @@ function CP:play_alert_sound()
 	-- self:Print('playing alert, sound key = '..tostring(k))
 	local sound_file = LSM:Fetch('sound', k)
 	PlaySoundFile(sound_file)
+end
+
+function CP:raise_alert()
+	-- This function acts upon the internal query object to produce
+	-- a report on the unit that has been flagged, and alerts the user
+	-- using the configured methods.
+	local conf = self:get_opts_db()
+	if conf.use_alert_sound then
+		self:play_alert_sound()
+	end
+	if conf.use_chat_alert then
+		self:print_chat_alert(t)
+	end
+
+	-- Handle stats counters
+	-- self.db.global.n_alerts = self.db.global.n_alerts + 1
+	-- self.db.realm.n_alerts = self.db.realm.n_alerts + 1
 end
 
 --=========================================================================================
@@ -819,10 +772,6 @@ end
 function CP:dump_name_lookup()
 	print(tab_dump(self.name_to_incident_table))
 end
-
--- function CP:dump_guid_lookup()
--- 	print(tab_dump(self.guid_lookup))
--- end
 
 function CP:dump_udi()
 	print(tab_dump(self:get_UDI()))
