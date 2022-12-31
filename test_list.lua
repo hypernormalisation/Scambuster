@@ -9,7 +9,7 @@ local case_data_1 = {
     [0] = {
         name = "Thrall",
         guid = "Player-GDSAKG-53295G",
-        reason = "GDKP Scam",
+        category = "gdkp",
         description = "Stole all the gold from a gdkp.",
         url = "some_other_url",
         aliases = {"Raegar"},
@@ -17,7 +17,7 @@ local case_data_1 = {
     [1] = {
         name = "Arthas",
         guid = "Player-GDDFDG-535321",
-        reason = "Dungeon Scam",
+        category = "dungeon",
         description = "Ninja needed an item they could not use.",
         url = "some_other_url_again",
     },
@@ -25,13 +25,13 @@ local case_data_1 = {
         name = "Swedger",
         guid = "Player-4904-0079C620",
         --guid = "SOME-WRONG-GUID",
-        reason = "Raid Scam",
+        category = "raid",
         description = "Some description.",
         url = "some_other_url",
     },
     [3] = {
         name = "Swodger",
-        reason = "Raid Scam",
+        category = "raid",
         description = "Some description for incident with Swodger.",
         url = "yet_another_url",
     },
@@ -42,7 +42,6 @@ local test_bl_1 = {
     provider = "Golemagg EU Discord",
     description = "Realm discord for the Golemagg EU realm.",
     url = "some_url",
-    merge_names = true,
     realm_data = {
         [realm] = case_data_1,
     }
@@ -66,7 +65,8 @@ local case_data_2 = {
     },
     [2] = {
         name = "Swedger",
-        reason = "Dungeon Scam",
+        category = "dungeon",
+        description = "Needed items for shards.",
         url = "url_to_evidence_here.com",
     }
 }
