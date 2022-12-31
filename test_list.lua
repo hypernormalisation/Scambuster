@@ -85,6 +85,7 @@ local CP = LibStub("AceAddon-3.0"):GetAddon("Cutpurse")
 CP.RegisterCallback(
     CP, "CUTPURSE_LIST_CONSTRUCTION",
     function()
+        print("Cutpurse internal list")
         CP:register_case_data(test_bl_1)
         CP:register_case_data(test_bl_2)
     end

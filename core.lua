@@ -3,10 +3,10 @@
 --=========================================================================================
 local addon_name, cp = ...
 local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
-CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP) 
+CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP)
 local LSM = LibStub("LibSharedMedia-3.0")
 cp.debug = false
-cp.add_test_list = true
+cp.add_test_list = false
 local L = cp.L
 if cp.debug then CP:Print("Parsing core.lua...") end
 
@@ -58,7 +58,8 @@ local function tab_dump(o)
 	else
 	   return tostring(o)
 	end
- end
+end
+CP.tab_dump = tab_dump
 
 function CP:colorise_name(name, class)
 	local c = RAID_CLASS_COLORS[class]
@@ -99,6 +100,8 @@ local english_locale_classes = {
 
 CP.guid_match_str = "This player's ID matches the following incidents:"
 CP.name_match_str = "This player's name matches the following incidents (name matches may not be conclusive):"
+CP.unprocessed_case_data = {}
+CP.provider_counter = 0
 
 --=========================================================================================
 -- Helper funcs
@@ -159,8 +162,7 @@ function CP:OnInitialize()
 	self:RegisterChatCommand("test1", "test1")
 
 	-- Temporary 
-	self.unprocessed_case_data = {}
-	self.provider_counter = 0
+	-- self.provider_counter = 0
 
 	-- Containers for the alerts system.
 	self.alert_counter = 0  -- just for index handling on temp alerts list
@@ -218,6 +220,10 @@ function CP:register_case_data(data)
 	-- the CUTPURSE_LIST_CONSTRUCTION callback.
 	-- This function takes a table of case data vars with integer keys.
 	-- self:Print("CALL TO REGISTER A LIST")
+	-- print(tab_dump(data))
+
+	-- TO-DO: we should do some data validation here.
+
 	self.provider_counter = self.provider_counter + 1
 	self.unprocessed_case_data[self.provider_counter] = data
 end
@@ -387,7 +393,7 @@ function CP:process_incident(case_data)
 	-- to either a guid or name in the lookup.
 	self.incident_counter = self.incident_counter + 1
 	local c = {}
-	c.description = case_data.description
+	c.description = case_data.description or false
 	c.url = case_data.url
 	c.category = case_data.category or false
 	c.level = case_data.level or 3
@@ -681,7 +687,9 @@ function CP:construct_incident_summaries()
 			else
 				s = s .. ":\n"
 			end
-			s = s .. "    - " .. incident.description .. '\n'
+			if incident.description then
+				s = s .. "    - " .. incident.description .. '\n'
+			end
 			s = s .. "    - " .. incident.url .. '\n'
 			-- print(s)
 			q.guid_incident_summaries[counter] = s
@@ -697,7 +705,9 @@ function CP:construct_incident_summaries()
 			else
 				s = s .. ":\n"
 			end
-			s = s .. "    - " .. incident.description .. '\n'
+			if incident.description then
+				s = s .. "    - " .. incident.description .. '\n'
+			end
 			s = s .. "    - " .. incident.url .. '\n'
 			-- print(s)
 			q.name_incident_summaries[counter] = s
