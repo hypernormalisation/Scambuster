@@ -38,6 +38,7 @@ CP.defaults = {
 		alert_lockout_seconds = 900,
 
 		-- Report generation settings
+		minimum_level = 1,
 		require_guid_match = false,
 		match_all_incidents = true,  -- when GUID match, also present name-matched incidents
 

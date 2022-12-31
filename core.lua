@@ -5,7 +5,7 @@ local addon_name, cp = ...
 local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP) 
 local LSM = LibStub("LibSharedMedia-3.0")
-cp.debug = true
+cp.debug = false
 cp.add_test_list = true
 local L = cp.L
 if cp.debug then CP:Print("Parsing core.lua...") end
@@ -96,6 +96,9 @@ local english_locale_classes = {
 	WARRIOR = "Warrior",
 	WARLOCK = "Warlock",
 }
+
+CP.guid_match_str = "This player's ID matches the following incidents:"
+CP.name_match_str = "This player's name matches the following incidents (name matches may not be conclusive):"
 
 --=========================================================================================
 -- Helper funcs
@@ -252,7 +255,7 @@ function CP:build_database()
 			end
 		end
 	end
-	self:database_post_processing()
+	-- self:database_post_processing()
 end
 
 function CP:database_post_processing()
@@ -387,7 +390,7 @@ function CP:process_incident(case_data)
 	c.description = case_data.description
 	c.url = case_data.url
 	c.category = case_data.category or false
-	c.level = case_data.level or 1
+	c.level = case_data.level or 3
 	c.provider = case_data.provider
 	c.class = case_data.class or false
 	self.incident_table[self.incident_counter] = c
@@ -440,9 +443,12 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		guid_match = true
 	end
 	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	if realm == "" then
+		realm = self.realm_name
+	end
 	local full_name = name .. "-" .. realm
 
-	-- If not a guid match, check for name match. If no name match, unit
+	-- If not a guid match, check for name match. If also no name match, unit
 	-- is not listed, so return.
 	-- self:Print("GUID match: " .. tostring(guid_match))
 	if not guid_match then
@@ -469,24 +475,23 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 
 	-- Fetch incidents that meet addon user's requirements.
 	-- conf.match_all_incidents
-	local guid_match_incidents = {}
-	local name_match_incidents = {}
+	local guid_match_incidents = nil
+	local name_match_incidents = nil
 	if guid_match then
 		guid_match_incidents = self:return_viable_incidents()
 	end
 	if (not guid_match) or conf.match_all_incidents then
 		name_match_incidents = self:return_viable_incidents(true)
 	end
-
-	local found_guid_matches = next(guid_match_incidents) ~= nil
-	local found_name_matches = next(name_match_incidents) ~= nil
-	if (not found_guid_matches) and (not found_name_matches) then
+	if (not guid_match_incidents) and (not name_match_incidents) then
 		-- self:Print("No viable matches")
 		return
 	end
 	-- self:Print("Found some matching incidents.")
-	self.query.name_incidents = found_name_matches
-	self.query.guid_incidents = found_guid_matches
+	self.query.guid_match_incidents = guid_match_incidents
+	self.query.name_match_incidents = name_match_incidents
+	-- print(guid_match_incidents)
+	-- print(name_match_incidents)
 	self:raise_alert()
 
 end
@@ -518,6 +523,8 @@ end
 function CP:return_viable_incidents(force_name_match)
 	-- Function to parse the incidents and return
 	-- a list of ones meeting the player's requirements for alerts.
+	-- Returns a table of incidents if any match.
+	-- Returns false if none match.
 	force_name_match = force_name_match or false
 	local incident_table = {}
 	local counter = 0
@@ -525,8 +532,10 @@ function CP:return_viable_incidents(force_name_match)
 	if not force_name_match then
 		incident_matches = self.user_table[self.query.guid].incidents
 	else
+		-- print(self.query.full_name)
 		if self.name_to_incident_table[self.query.full_name] == nil then
-			return incident_table
+			-- print('no table')
+			return false
 		end
 		incident_matches = self.name_to_incident_table[self.query.full_name].incidents
 	end
@@ -540,6 +549,9 @@ function CP:return_viable_incidents(force_name_match)
 			incident_table[counter] = incident
 		end
 	end
+	if next(incident_table) == nil then
+		return false
+	end
 	return incident_table
 end
 
@@ -547,12 +559,12 @@ function CP:should_add_incident(incident)
 	-- Checks the given incident meets the user's requirements
 	-- for generating an alert.
 	local conf = self:get_opts_db()
-	-- First probation level.
-	if not conf.probation_alerts then
-		if incident.level == 2 then
-			return false
-		end
+	-- First alert level.
+	if incident.level < conf.minimum_level then
+		-- self:Print("Incident too low level")
+		return false
 	end
+
 	-- print('a')
 	-- Then category. If no category given by provider then proceed.
 	if incident.category == false then
@@ -564,7 +576,7 @@ function CP:should_add_incident(incident)
 		return true
 	-- If category exists, check it's not excluded.
 	else
-		if conf.exclusions[incident] == false then
+		if conf.exclusions[incident.category] == false then
 			return true
 		end
 	end
@@ -633,49 +645,107 @@ end
 --=========================================================================================
 -- Alert functionality
 --=========================================================================================
-function CP:print_chat_alert()
-
+function CP:construct_headline()
+	-- Constructs a summary string for the pinged unit.
 	local q = self.query
 	local udi = self:get_UDI()
 	local u = udi[q.guid]
+	local name = self:colorise_name(u.short_name, u.english_class)
 	if u == nil then
 		u = udi[q.full_name]
 	end
-
-	-- First the player details.
-	local s1 = "Encountered a listed player: "
+	local s1 = "Encountered a listed player! "
 	if u.level and u.guild then
-		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, u.short_name, u.guild)
+		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, name, u.guild)
 	elseif u.level then
-		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, u.short_name)
+		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, name)
 	elseif u.guild then
-		s1 = s1 .. string.format("%s %s from [%s]", u.race, u.class_english_locale, u.short_name)
-
+		s1 = s1 .. string.format("%s %s from [%s]", u.race, u.class_english_locale, name)
 	else
-		s1 = s1 .. string.format("%s %s", u.class_english_locale, u.short_name)
+		s1 = s1 .. string.format("%s %s", u.class_english_locale, name)
 	end
-	s1 = s1 .. string.format(", detected via %s scan", q.scan_context)
-	self:Print(s1)
+	s1 = s1 .. string.format(", detected via %s scan.", q.scan_context)
+	q.headline = s1
+end
 
+function CP:construct_incident_summaries()
+	-- Construct summary strings for the incidents for the unit.
+	local q = self.query
+	local counter = 0
+	if q.guid_match_incidents then
+		q.guid_incident_summaries = {}
+		for _, incident in pairs(q.guid_match_incidents) do
+			local s = "  # Listed by " .. incident.provider
+			if incident.category and incident_categories[incident.category] then
+				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
+			else
+				s = s .. ":\n"
+			end
+			s = s .. "    - " .. incident.description .. '\n'
+			s = s .. "    - " .. incident.url .. '\n'
+			-- print(s)
+			q.guid_incident_summaries[counter] = s
+			counter = counter + 1
+		end
+	end
+	if q.name_match_incidents then
+		q.name_incident_summaries = {}
+		for _, incident in pairs(q.name_match_incidents) do
+			local s = "  # Listed by " .. incident.provider
+			if incident.category and incident_categories[incident.category] then
+				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
+			else
+				s = s .. ":\n"
+			end
+			s = s .. "    - " .. incident.description .. '\n'
+			s = s .. "    - " .. incident.url .. '\n'
+			-- print(s)
+			q.name_incident_summaries[counter] = s
+			counter = counter + 1
+		end
+	end
 end
 
 function CP:play_alert_sound()
+	-- Plays the configured alert sound in the client.
 	local k = self:get_opts_db().alert_sound
 	-- self:Print('playing alert, sound key = '..tostring(k))
 	local sound_file = LSM:Fetch('sound', k)
 	PlaySoundFile(sound_file)
 end
 
+function CP:print_chat_alert()
+	-- Prints an alert to the chatbox.
+	local q = self.query
+	local s = ""
+	s = s .. q.headline .. '\n'
+	if q.guid_incident_summaries then
+		s = s .. 'The following incidents match this player\'s GUID:\n'
+		for _, isum in pairs(q.guid_incident_summaries) do
+			s = s .. isum
+		end
+	end
+	if q.name_incident_summaries then
+		s = s .. 'The following incidents match this player\'s name but do not have a GUID:\n'
+		for _, isum in pairs(q.name_incident_summaries) do
+			s = s .. isum
+		end
+	end
+	self:Print(s)
+end
+
 function CP:raise_alert()
 	-- This function acts upon the internal query object to produce
 	-- a report on the unit that has been flagged, and alerts the user
 	-- using the configured methods.
+	self:construct_headline()
+	self:construct_incident_summaries()
 	local conf = self:get_opts_db()
 	if conf.use_alert_sound then
 		self:play_alert_sound()
 	end
 	if conf.use_chat_alert then
-		self:print_chat_alert(t)
+		self:print_chat_alert()
 	end
 
 	-- Handle stats counters
