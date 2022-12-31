@@ -29,7 +29,7 @@ CP.defaults = {
         grace_period_s = 10,
 
 		-- Scanning settings
-		use_mouseover_scan = true,
+		use_mouseover_scan = false,
 		use_whisper_scan = true,
 		use_target_scan = true,
 		use_group_scan = true,
