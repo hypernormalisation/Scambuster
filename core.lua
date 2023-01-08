@@ -6,7 +6,7 @@ local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP)
 local LSM = LibStub("LibSharedMedia-3.0")
 cp.debug = false
-cp.add_test_list = false
+cp.add_test_list = true
 local L = cp.L
 if cp.debug then CP:Print("Parsing core.lua...") end
 
@@ -264,45 +264,45 @@ function CP:build_database()
 	-- self:database_post_processing()
 end
 
-function CP:database_post_processing()
-	-- This function runs some post-processing on the database
-	-- to correlate the users with summaries of the incidents they
-	-- are involved with.
+-- function CP:database_post_processing()
+-- 	-- This function runs some post-processing on the database
+-- 	-- to correlate the users with summaries of the incidents they
+-- 	-- are involved with.
 
-	-- First the users who have guids, directly add to the table.
-	for _, user in pairs(self.user_table) do
-		local categories = {}
-		local min_level = 2
-		for incident_index, _ in ipairs(user.incidents) do
-			local i = self.incident_table[incident_index]
-			if i.level < min_level then
-				min_level = i.level
-			end
-			if i.category then
-				categories[i.category] = true
-			end
-		end
-		user.min_level = min_level
-		user.categories = categories
-	end
+-- 	-- First the users who have guids, directly add to the table.
+-- 	for _, user in pairs(self.user_table) do
+-- 		local categories = {}
+-- 		local min_level = 2
+-- 		for incident_index, _ in ipairs(user.incidents) do
+-- 			local i = self.incident_table[incident_index]
+-- 			if i.level < min_level then
+-- 				min_level = i.level
+-- 			end
+-- 			if i.category then
+-- 				categories[i.category] = true
+-- 			end
+-- 		end
+-- 		user.min_level = min_level
+-- 		user.categories = categories
+-- 	end
 
-	-- Now name-based lookup, add to the lookup table.
-	for _, incident_table in pairs(self.name_to_incident_table) do
-		local categories = {}
-		local min_level = 2
-		for incident_index, _ in ipairs(incident_table.incidents) do
-			local i = self.incident_table[incident_index]
-			if i.level < min_level then
-				min_level = i.level
-			end
-			if i.category then
-				categories[i.category] = true
-			end
-		end
-		incident_table.min_level = min_level
-		incident_table.categories = categories
-	end
-end
+-- 	-- Now name-based lookup, add to the lookup table.
+-- 	for _, incident_table in pairs(self.name_to_incident_table) do
+-- 		local categories = {}
+-- 		local min_level = 2
+-- 		for incident_index, _ in ipairs(incident_table.incidents) do
+-- 			local i = self.incident_table[incident_index]
+-- 			if i.level < min_level then
+-- 				min_level = i.level
+-- 			end
+-- 			if i.category then
+-- 				categories[i.category] = true
+-- 			end
+-- 		end
+-- 		incident_table.min_level = min_level
+-- 		incident_table.categories = categories
+-- 	end
+-- end
 
 function CP:protected_process_provider(l)
 	-- Wrap the parse of the unprocessed provider data in a pcall
@@ -329,34 +329,52 @@ function CP:process_provider(l)
 		for _, case_data in pairs(realm_dict) do
 			case_data.realm = realm
 			case_data.provider = l.provider
-			case_data.full_name = case_data.name .. "-" .. realm
-			-- If we have a GUID, we ensure the case is linked
-			-- to a discrete user. If not, we just process the incident.
-			if case_data.guid then
-				self:process_case_by_guid(case_data)
+			if case_data.name then
+				case_data.full_name = case_data.name .. "-" .. realm	
+			end
+			-- If "players" field given, we have multiple players on
+			-- this incident, so process them all.
+			if case_data.players then
+				self:process_players(case_data)
+			-- Else if we have a GUID, we ensure the case is linked
+			-- to a discrete user.
+			elseif case_data.guid then
+				self:process_player_by_guid(case_data)
 			end
 			self:process_incident(case_data)
 		end
 	end
 end
 
-function CP:process_case_by_guid(case_data)
+function CP:process_players(case_data)
+	-- This function handles parsing of incidents with multiple players.
+	for _, player_info in pairs(case_data.players) do
+		if player_info.guid then
+			player_info.realm = case_data.realm
+			player_info.provider = case_data.provider
+			self:process_player_by_guid(player_info)
+		end
+	end
+end
+
+function CP:process_player_by_guid(input)
 	-- This function processes an individual case where a guid
 	-- is given in the case data. If a user entry already exists for this
 	-- guid, it merges the information. Else, it creates a new user entry.
-	local exists = not (self.user_table[case_data.guid] == nil)
+	-- print(tab_dump(input))
+	local exists = not (self.user_table[input.guid] == nil)
 	local t = {}
 	if exists then
-		t = self.user_table[case_data.guid]
-		if case_data.realm ~= t.realm then
+		t = self.user_table[input.guid]
+		if input.realm ~= t.realm then
 			self:Print(
 				"Warning: two lists have the same player matched by current guid, but "..
 				"listed on different servers, which is impossible. "..
-				string.format("Player name: %s", case_data.name .. "-" .. case_data.realm)
+				string.format("Player name: %s", input.name .. "-" .. input.realm)
 			)
 		end
 	else
-		t.realm = case_data.realm
+		t.realm = input.realm
 		t.names = {}
 		t.previous_names = {}
 		t.previous_guids = {}
@@ -364,28 +382,28 @@ function CP:process_case_by_guid(case_data)
 	end
 
 	-- Add name if not present to possible current names.
-	if not t.names[case_data.provider] then
-		t.names[case_data.provider] = case_data.name
+	if not t.names[input.provider] then
+		t.names[input.provider] = input.name
 	end
 	-- Possible previous names
-	if case_data.previous_names then
-		for _, alias in ipairs(case_data.previous_names) do
+	if input.previous_names then
+		for _, alias in ipairs(input.previous_names) do
 			if not t.aliases[alias] then
 				t.aliases[alias] = true
-				self.alias_table[alias] = case_data.name
+				self.alias_table[alias] = input.name
 			end
 		end
 	end
 	-- Possible previous guids
-	if case_data.previous_guids then
-		for _, g in ipairs(case_data.previous_guids) do
+	if input.previous_guids then
+		for _, g in ipairs(input.previous_guids) do
 			if not t.previous_guids[g] then
 				t.previous_guids[g] = true
-				self.previous_guid_table[g] = {guid = case_data.guid}
+				self.previous_guid_table[g] = {guid = input.guid}
 			end
 		end
 	end
-	self.user_table[case_data.guid] = t
+	self.user_table[input.guid] = t
 end
 
 function CP:process_incident(case_data)
@@ -398,20 +416,34 @@ function CP:process_incident(case_data)
 	c.category = case_data.category or false
 	c.level = case_data.level or 3
 	c.provider = case_data.provider
-	c.class = case_data.class or false
+	-- c.class = case_data.class or false
 	self.incident_table[self.incident_counter] = c
 
 	-- Now we need to reference the incident.
-	-- If GUID-based, add the incident id to the user table.
-	if case_data.guid then
-		self.user_table[case_data.guid].incidents[self.incident_counter] = true
-	-- Else ensure the incident id is mapped to the name
-	else
-		if not self.name_to_incident_table[case_data.full_name] then
-			self.name_to_incident_table[case_data.full_name] = {}
-			self.name_to_incident_table[case_data.full_name].incidents = {}
+	if case_data.players then
+		for _, player_info in pairs(case_data.players) do
+			if player_info.name then
+				player_info.full_name = player_info.name .. "-" .. case_data.realm
+			end
+			self:reference_incident_to_player(player_info)
 		end
-		self.name_to_incident_table[case_data.full_name].incidents[self.incident_counter] = true
+	else
+		self:reference_incident_to_player(case_data)
+	end
+end
+
+function CP:reference_incident_to_player(input)
+	-- Creates a reference between a single player and the incident in question.
+	-- input will either be the table for the whole case for a single player,
+	-- or alternately a player_info table for each player in the case.
+	if input.guid then
+		self.user_table[input.guid].incidents[self.incident_counter] = true
+	else
+		if not self.name_to_incident_table[input.full_name] then
+			self.name_to_incident_table[input.full_name] = {}
+			self.name_to_incident_table[input.full_name].incidents = {}
+		end
+		self.name_to_incident_table[input.full_name].incidents[self.incident_counter] = true
 	end
 end
 
@@ -879,44 +911,41 @@ end
 --=========================================================================================
 -- helper funcs for loading and altering lists
 --=========================================================================================
-function CP:add_to_ubl(t)
-	-- Function to add to the ubl. t should be a table with at least one 
-	-- of unitID or name, and always with reason.
-	local unitId = t.unitId
-	local name = t.name
-	local reason = t.reason
-	CP:Print(name, unitId, reason)
-	if reason == nil then
-		self:Print("Error: need a reason to blacklist target")
-		return
-	end
-	if unitId ~= nil then
-		if not self:is_unit_eligible(unitId) then
-			self:Print("Unit is not a same-faction player and cannot be blacklisted!")
-			return
-		end
-		name = UnitName(unitId)
-		if name == nil then
-			self:Print("ERROR: name from API not valid.")
-			return
-		end
-		-- Record player's dynamic information.
-		self:update_udi(unitId)
-	end
-	-- check if on blacklist already
-	if self.ubl[name] ~= nil then
-		self:Print(string.format("%s is already on user blocklist, updating info.", name))
-	else
-		self:Print(string.format("%s will be placed on the user blocklist.", name))
-	end
-	self:Print("Reason: " .. reason)
-	self.ubl[name] = {
-		reason = reason,
-		ignore = false -- override any ignore settings
-	}
-end
-
-
-
+-- function CP:add_to_ubl(t)
+-- 	-- Function to add to the ubl. t should be a table with at least one 
+-- 	-- of unitID or name, and always with reason.
+-- 	local unitId = t.unitId
+-- 	local name = t.name
+-- 	local reason = t.reason
+-- 	CP:Print(name, unitId, reason)
+-- 	if reason == nil then
+-- 		self:Print("Error: need a reason to blacklist target")
+-- 		return
+-- 	end
+-- 	if unitId ~= nil then
+-- 		if not self:is_unit_eligible(unitId) then
+-- 			self:Print("Unit is not a same-faction player and cannot be blacklisted!")
+-- 			return
+-- 		end
+-- 		name = UnitName(unitId)
+-- 		if name == nil then
+-- 			self:Print("ERROR: name from API not valid.")
+-- 			return
+-- 		end
+-- 		-- Record player's dynamic information.
+-- 		self:update_udi(unitId)
+-- 	end
+-- 	-- check if on blacklist already
+-- 	if self.ubl[name] ~= nil then
+-- 		self:Print(string.format("%s is already on user blocklist, updating info.", name))
+-- 	else
+-- 		self:Print(string.format("%s will be placed on the user blocklist.", name))
+-- 	end
+-- 	self:Print("Reason: " .. reason)
+-- 	self.ubl[name] = {
+-- 		reason = reason,
+-- 		ignore = false -- override any ignore settings
+-- 	}
+-- end
 
 if cp.debug then CP:Print("Finished parsing core.lua.") end
