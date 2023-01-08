@@ -6,35 +6,49 @@ if not cp.add_test_list then return end
 local realm = GetRealmName()
 
 local case_data_1 = {
-    [0] = {
-        name = "Thrall",
-        guid = "Player-GDSAKG-53295G",
-        category = "gdkp",
-        description = "Stole all the gold from a gdkp.",
-        url = "some_other_url",
-        aliases = {"Raegar"},
-    },
-    [1] = {
-        name = "Arthas",
-        guid = "Player-GDDFDG-535321",
-        category = "dungeon",
-        description = "Ninja needed an item they could not use.",
-        url = "some_other_url_again",
-    },
-    [2] = {
-        name = "Swedger",
-        guid = "Player-4904-0079C620",
-        --guid = "SOME-WRONG-GUID",
-        category = "raid",
-        description = "Some description.",
-        url = "some_other_url",
-    },
-    [3] = {
-        name = "Swodger",
-        category = "raid",
-        description = "Some description for incident with Swodger.",
-        url = "yet_another_url",
-    },
+    -- [0] = {
+    --     name = "Thrall",
+    --     guid = "Player-GDSAKG-53295G",
+    --     category = "gdkp",
+    --     description = "Stole all the gold from a gdkp.",
+    --     url = "some_other_url",
+    --     aliases = {"Raegar"},
+    -- },
+    -- [1] = {
+    --     name = "Arthas",
+    --     guid = "Player-GDDFDG-535321",
+    --     category = "dungeon",
+    --     description = "Ninja needed an item they could not use.",
+    --     url = "some_other_url_again",
+    -- },
+    -- [2] = {
+    --     name = "Swedger",
+    --     guid = "Player-4904-0079C620",
+    --     --guid = "SOME-WRONG-GUID",
+    --     category = "raid",
+    --     description = "Some description.",
+    --     url = "some_other_url",
+    -- },
+    -- [3] = {
+    --     name = "Swodger",
+    --     category = "raid",
+    --     description = "Some description for incident with Swodger.",
+    --     url = "yet_another_url",
+    -- },
+    -- [4] = {
+    --     players = {
+    --         [0] = {
+    --             name = "Swedger",
+    --             guid = "Player-4904-0079C620",
+    --         },
+    --         [1] = {
+    --             name = "Accomplice",
+    --             class = "DRUID",
+    --         }
+    --     },
+    --     category = "trade",
+    --     url = "some_url_with_two_players.com",
+    -- },
 }
 
 local test_bl_1 = {
@@ -85,7 +99,7 @@ local CP = LibStub("AceAddon-3.0"):GetAddon("Cutpurse")
 CP.RegisterCallback(
     CP, "CUTPURSE_LIST_CONSTRUCTION",
     function()
-        print("Cutpurse internal list")
+        CP:Print("DEBUG: Cutpurse internal test list enabled and loaded.")
         CP:register_case_data(test_bl_1)
         CP:register_case_data(test_bl_2)
     end
