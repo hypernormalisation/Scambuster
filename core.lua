@@ -231,8 +231,9 @@ end
 function CP:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
-	-- self:Print("Building Cutpurse database...")
-
+	if cp.debug then
+		self:Print("Building Cutpurse database...")
+	end
 	-- A table mapping GUIDs to User info tables.
 	self.user_table = {}
 	self.user_counter = 0
@@ -263,46 +264,6 @@ function CP:build_database()
 	end
 	-- self:database_post_processing()
 end
-
--- function CP:database_post_processing()
--- 	-- This function runs some post-processing on the database
--- 	-- to correlate the users with summaries of the incidents they
--- 	-- are involved with.
-
--- 	-- First the users who have guids, directly add to the table.
--- 	for _, user in pairs(self.user_table) do
--- 		local categories = {}
--- 		local min_level = 2
--- 		for incident_index, _ in ipairs(user.incidents) do
--- 			local i = self.incident_table[incident_index]
--- 			if i.level < min_level then
--- 				min_level = i.level
--- 			end
--- 			if i.category then
--- 				categories[i.category] = true
--- 			end
--- 		end
--- 		user.min_level = min_level
--- 		user.categories = categories
--- 	end
-
--- 	-- Now name-based lookup, add to the lookup table.
--- 	for _, incident_table in pairs(self.name_to_incident_table) do
--- 		local categories = {}
--- 		local min_level = 2
--- 		for incident_index, _ in ipairs(incident_table.incidents) do
--- 			local i = self.incident_table[incident_index]
--- 			if i.level < min_level then
--- 				min_level = i.level
--- 			end
--- 			if i.category then
--- 				categories[i.category] = true
--- 			end
--- 		end
--- 		incident_table.min_level = min_level
--- 		incident_table.categories = categories
--- 	end
--- end
 
 function CP:protected_process_provider(l)
 	-- Wrap the parse of the unprocessed provider data in a pcall
@@ -528,8 +489,6 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- self:Print("Found some matching incidents.")
 	self.query.guid_match_incidents = guid_match_incidents
 	self.query.name_match_incidents = name_match_incidents
-	-- print(guid_match_incidents)
-	-- print(name_match_incidents)
 	self:raise_alert()
 
 end
@@ -907,45 +866,5 @@ function CP:test1()
 	self:Print("N alerts global = " .. tostring(self.db.global.n_alerts))
 	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
 end
-
---=========================================================================================
--- helper funcs for loading and altering lists
---=========================================================================================
--- function CP:add_to_ubl(t)
--- 	-- Function to add to the ubl. t should be a table with at least one 
--- 	-- of unitID or name, and always with reason.
--- 	local unitId = t.unitId
--- 	local name = t.name
--- 	local reason = t.reason
--- 	CP:Print(name, unitId, reason)
--- 	if reason == nil then
--- 		self:Print("Error: need a reason to blacklist target")
--- 		return
--- 	end
--- 	if unitId ~= nil then
--- 		if not self:is_unit_eligible(unitId) then
--- 			self:Print("Unit is not a same-faction player and cannot be blacklisted!")
--- 			return
--- 		end
--- 		name = UnitName(unitId)
--- 		if name == nil then
--- 			self:Print("ERROR: name from API not valid.")
--- 			return
--- 		end
--- 		-- Record player's dynamic information.
--- 		self:update_udi(unitId)
--- 	end
--- 	-- check if on blacklist already
--- 	if self.ubl[name] ~= nil then
--- 		self:Print(string.format("%s is already on user blocklist, updating info.", name))
--- 	else
--- 		self:Print(string.format("%s will be placed on the user blocklist.", name))
--- 	end
--- 	self:Print("Reason: " .. reason)
--- 	self.ubl[name] = {
--- 		reason = reason,
--- 		ignore = false -- override any ignore settings
--- 	}
--- end
 
 if cp.debug then CP:Print("Finished parsing core.lua.") end
