@@ -23,6 +23,7 @@ CP.defaults = {
 
 		-- alert settings
         use_chat_alert = true,
+		use_group_chat_alert = true,
 		use_gui_alert = true,
 		use_alert_sound = true,
 		alert_sound = "Cutpurse: Criminal Scum!",

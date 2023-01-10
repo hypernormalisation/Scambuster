@@ -32,6 +32,7 @@ local UnitLevel = UnitLevel
 local UnitRace = UnitRace
 local UnitClass = UnitClass
 local GetGuildInfo = GetGuildInfo
+local SendChatMessage = SendChatMessage
 
 local pcall = pcall
 
@@ -372,6 +373,7 @@ function CP:process_incident(case_data)
 	-- to either a guid or name in the lookup.
 	self.incident_counter = self.incident_counter + 1
 	local c = {}
+	c.case_id = self.incident_counter
 	c.description = case_data.description or false
 	c.url = case_data.url
 	c.category = case_data.category or false
@@ -434,18 +436,22 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	-- registered the unit. If a unit_token is given, it defaults to that.
 	-- If a unit token does not exist, as for whispers or invite
 	-- confirmations, it should be passed manually.
-	local conf = self:get_opts_db()
+
 	-- First check for a guid match.
+	local conf = self:get_opts_db()
 	unit_guid = unit_guid or UnitGUID(unit_token)
 	local guid_match = false
 	if self.user_table[unit_guid] then
 		guid_match = true
 	end
 	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
+	-- self:Print(realm, type(realm))
 	if realm == "" then
+		-- self:Print(self.realm_name)
 		realm = self.realm_name
 	end
 	local full_name = name .. "-" .. realm
+	-- self:Print(full_name)
 
 	-- If not a guid match, check for name match. If also no name match, unit
 	-- is not listed, so return.
@@ -456,7 +462,6 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 			return
 		end
 	end
-
 	-- By now we know the person is listed. So populate the query table
 	-- and update the dynamic info for the unit.
 	unit_token = unit_token or false
@@ -467,7 +472,9 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 	self.query.guid_match = guid_match
 	self.query.guid = unit_guid
 	self.query.full_name = full_name
+	self.query.short_name = name
 	self:update_UDI()
+
 
 	-- Check we're not on report lockout for this unit.
 	if not self:is_off_alert_lockout() then return end
@@ -483,7 +490,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		name_match_incidents = self:return_viable_incidents(true)
 	end
 	if (not guid_match_incidents) and (not name_match_incidents) then
-		-- self:Print("No viable matches")
+		self:Print("No viable matches")
 		return
 	end
 	-- self:Print("Found some matching incidents.")
@@ -502,15 +509,15 @@ function CP:is_off_alert_lockout()
 	if not q.guid_match then
 		index = q.full_name
 	end
-
 	if not udi[index].last_alerted then
 		udi[index].last_alerted = GetTime()
 		return true
 	end
+
 	local delta = self:get_opts_db().alert_lockout_seconds
 	if GetTime() < delta + udi[index].last_alerted then
 		local time_until = delta + udi[index].last_alerted - GetTime()
-		-- self:Print(string.format("locked out for another %f seconds", time_until))
+		self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
 	udi[index].last_alerted = GetTime()
@@ -556,21 +563,21 @@ function CP:should_add_incident(incident)
 	-- Checks the given incident meets the user's requirements
 	-- for generating an alert.
 	local conf = self:get_opts_db()
+
 	-- First alert level.
 	if incident.level < conf.minimum_level then
 		-- self:Print("Incident too low level")
 		return false
 	end
 
-	-- print('a')
 	-- Then category. If no category given by provider then proceed.
 	if incident.category == false then
 		return true
 	end
-	-- print('b')
 	-- If category is given wrongly by provider, ignore it.
 	if not incident_categories[incident.category] then
 		return true
+
 	-- If category exists, check it's not excluded.
 	else
 		if conf.exclusions[incident.category] == false then
@@ -640,9 +647,9 @@ function CP:update_UDI()
 end
 
 --=========================================================================================
--- Alert functionality
+-- String construction for alerts
 --=========================================================================================
-function CP:construct_headline()
+function CP:construct_printout_headline()
 	-- Constructs a summary string for the pinged unit.
 	local q = self.query
 	local udi = self:get_UDI()
@@ -661,52 +668,93 @@ function CP:construct_headline()
 	else
 		s1 = s1 .. string.format("%s %s", u.class_english_locale, name)
 	end
-	s1 = s1 .. string.format(", detected via %s scan.", q.scan_context)
+	s1 = s1 .. string.format(", detected via %s scan.\nListed by:", q.scan_context)
 	q.headline = s1
 end
 
-function CP:construct_incident_summaries()
-	-- Construct summary strings for the incidents for the unit.
+-- function CP:construct_incident_summaries()
+-- 	-- Construct summary strings for the incidents for the unit.
+-- 	local q = self.query
+-- 	local counter = 0
+-- 	if q.guid_match_incidents then
+-- 		q.guid_incident_summaries = {}
+-- 		for _, incident in pairs(q.guid_match_incidents) do
+-- 			local s = "    Listed by " .. incident.provider
+-- 			if incident.category and incident_categories[incident.category] then
+-- 				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
+-- 			else
+-- 				s = s .. ":\n"
+-- 			end
+-- 			if incident.description then
+-- 				s = s .. "    - " .. incident.description .. '\n'
+-- 			end
+-- 			s = s .. "    - " .. incident.url .. '\n'
+-- 			-- print(s)
+-- 			q.guid_incident_summaries[counter] = s
+-- 			counter = counter + 1
+-- 		end
+-- 	end
+-- 	if q.name_match_incidents then
+-- 		q.name_incident_summaries = {}
+-- 		for _, incident in pairs(q.name_match_incidents) do
+-- 			local s = "    Listed by " .. incident.provider
+-- 			if incident.category and incident_categories[incident.category] then
+-- 				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
+-- 			else
+-- 				s = s .. ":\n"
+-- 			end
+-- 			if incident.description then
+-- 				s = s .. "    - " .. incident.description .. '\n'
+-- 			end
+-- 			s = s .. "    - " .. incident.url .. '\n'
+-- 			-- print(s)
+-- 			q.name_incident_summaries[counter] = s
+-- 			counter = counter + 1
+-- 		end
+-- 	end
+-- end
+
+function CP:construct_chat_strings()
+	-- Constructs the necessary strings for channel alerts.
 	local q = self.query
-	local counter = 0
+
+	-- The headline
+	q.chat_headline = string.format("Warning! %s is a known scammer. Listed by...", q.short_name)
+	-- The guid-matched incidents
+	q.chat_incidents = {}
 	if q.guid_match_incidents then
-		q.guid_incident_summaries = {}
 		for _, incident in pairs(q.guid_match_incidents) do
-			local s = "  # Listed by " .. incident.provider
-			if incident.category and incident_categories[incident.category] then
-				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
-			else
-				s = s .. ":\n"
+			if not q.chat_incidents[incident.provider] then
+				q.chat_incidents[incident.provider] = {}
 			end
-			if incident.description then
-				s = s .. "    - " .. incident.description .. '\n'
+			local s = string.format("-> %s:", incident.provider)
+			if incident.category then
+				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
 			end
-			s = s .. "    - " .. incident.url .. '\n'
-			-- print(s)
-			q.guid_incident_summaries[counter] = s
-			counter = counter + 1
+			s = s .. " " .. incident.url
+			q.chat_incidents[incident.provider][incident.case_id] = {s = s, guid = true, incident=incident}
 		end
 	end
+	-- The name-matched incidents
 	if q.name_match_incidents then
-		q.name_incident_summaries = {}
 		for _, incident in pairs(q.name_match_incidents) do
-			local s = "  # Listed by " .. incident.provider
-			if incident.category and incident_categories[incident.category] then
-				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
-			else
-				s = s .. ":\n"
+			if not q.chat_incidents[incident.provider] then
+				q.chat_incidents[incident.provider] = {}
 			end
-			if incident.description then
-				s = s .. "    - " .. incident.description .. '\n'
+			local s = string.format("-> %s:", incident.provider)
+			if incident.category then
+				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
 			end
-			s = s .. "    - " .. incident.url .. '\n'
-			-- print(s)
-			q.name_incident_summaries[counter] = s
-			counter = counter + 1
+			s = s .. " " .. incident.url
+			s = s .. " (name-only)"
+			q.chat_incidents[incident.provider][incident.case_id] = {s = s, guid = false, incident=incident}
 		end
 	end
 end
 
+--=========================================================================================
+-- Alert functionality.
+--=========================================================================================
 function CP:play_alert_sound()
 	-- Plays the configured alert sound in the client.
 	local k = self:get_opts_db().alert_sound
@@ -716,39 +764,70 @@ function CP:play_alert_sound()
 end
 
 function CP:print_chat_alert()
-	-- Prints an alert to the chatbox.
+	-- Prints an alert to the chatbox, just to the player.
 	local q = self.query
-	local s = ""
-	s = s .. q.headline .. '\n'
-	if q.guid_incident_summaries then
-		s = s .. 'The following incidents match this player\'s GUID:\n'
-		for _, isum in pairs(q.guid_incident_summaries) do
-			s = s .. isum
-		end
-	end
-	if q.name_incident_summaries then
-		s = s .. 'The following incidents match this player\'s name but do not have a GUID:\n'
-		for _, isum in pairs(q.name_incident_summaries) do
-			s = s .. isum
+	local s = q.headline .. '\n'
+	for _, provider_table in pairs(q.chat_incidents) do
+		for _, t in pairs(provider_table) do
+			s = s .. t.s .. '\n'
 		end
 	end
 	self:Print(s)
+	-- s = s .. q.headline .. '\n'
+	-- if q.guid_incident_summaries then
+	-- 	s = s .. 'The following incidents match this player\'s GUID:\n'
+	-- 	for _, isum in pairs(q.guid_incident_summaries) do
+	-- 		s = s .. isum
+	-- 	end
+	-- end
+	-- if q.name_incident_summaries then
+	-- 	s = s .. 'The following incidents match this player\'s name but do not have a GUID:\n'
+	-- 	for _, isum in pairs(q.name_incident_summaries) do
+	-- 		s = s .. isum
+	-- 	end
+	-- end
+	-- self:Print(s)
+end
+
+function CP:send_channel_alert(channel)
+	-- Sends a chat alert to the requested channel.
+	local q = self.query
+	SendChatMessage(q.chat_headline, channel)
+	for _, provider_table in pairs(q.chat_incidents) do
+		for _, t in pairs(provider_table) do
+			SendChatMessage(t.s, channel)
+			if t.incident.description then
+				SendChatMessage("--> " .. t.incident.description, channel)
+			end
+		end
+	end
 end
 
 function CP:raise_alert()
 	-- This function acts upon the internal query object to produce
 	-- a report on the unit that has been flagged, and alerts the user
 	-- using the configured methods.
-	self:construct_headline()
-	self:construct_incident_summaries()
+	-- First construct the relevant messages etc.
+	self:construct_printout_headline()
+	self:construct_chat_strings()
+
 	local conf = self:get_opts_db()
 	if conf.use_alert_sound then
 		self:play_alert_sound()
 	end
-	if conf.use_chat_alert then
-		self:print_chat_alert()
-	end
 
+	-- Only do printout if the 
+	if conf.use_group_chat_alert and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+		local channel = "PARTY"
+		if IsInRaid() then
+			channel = "RAID"
+		end
+		self:send_channel_alert(channel)
+	else
+		if conf.use_chat_alert then
+			self:print_chat_alert()
+		end
+	end
 	-- Handle stats counters
 	-- self.db.global.n_alerts = self.db.global.n_alerts + 1
 	-- self.db.realm.n_alerts = self.db.realm.n_alerts + 1
@@ -867,4 +946,7 @@ function CP:test1()
 	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
 end
 
+--=========================================================================================
+-- Debug for lua parsing
+--=========================================================================================
 if cp.debug then CP:Print("Finished parsing core.lua.") end
