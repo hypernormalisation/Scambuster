@@ -765,38 +765,29 @@ end
 
 function CP:print_chat_alert()
 	-- Prints an alert to the chatbox, just to the player.
+	local conf = self:get_opts_db()
 	local q = self.query
 	local s = q.headline .. '\n'
 	for _, provider_table in pairs(q.chat_incidents) do
 		for _, t in pairs(provider_table) do
 			s = s .. t.s .. '\n'
+			if t.incident.description and conf.show_chat_descriptions then
+				s = s .. "--> " .. t.incident.description .. '\n'
+			end
 		end
 	end
 	self:Print(s)
-	-- s = s .. q.headline .. '\n'
-	-- if q.guid_incident_summaries then
-	-- 	s = s .. 'The following incidents match this player\'s GUID:\n'
-	-- 	for _, isum in pairs(q.guid_incident_summaries) do
-	-- 		s = s .. isum
-	-- 	end
-	-- end
-	-- if q.name_incident_summaries then
-	-- 	s = s .. 'The following incidents match this player\'s name but do not have a GUID:\n'
-	-- 	for _, isum in pairs(q.name_incident_summaries) do
-	-- 		s = s .. isum
-	-- 	end
-	-- end
-	-- self:Print(s)
 end
 
 function CP:send_channel_alert(channel)
 	-- Sends a chat alert to the requested channel.
+	local conf = self:get_opts_db()
 	local q = self.query
 	SendChatMessage(q.chat_headline, channel)
 	for _, provider_table in pairs(q.chat_incidents) do
 		for _, t in pairs(provider_table) do
 			SendChatMessage(t.s, channel)
-			if t.incident.description then
+			if t.incident.description and conf.show_chat_descriptions then
 				SendChatMessage("--> " .. t.incident.description, channel)
 			end
 		end

@@ -22,12 +22,17 @@ CP.defaults = {
 		welcome_message = true,
 
 		-- alert settings
-        use_chat_alert = true,
+        grace_period_s = 10,
+
+		use_chat_alert = true,
 		use_group_chat_alert = true,
-		use_gui_alert = true,
+		show_chat_descriptions = true,
+
+		use_gui_alert = true, -- placeholder
+
 		use_alert_sound = true,
 		alert_sound = "Cutpurse: Criminal Scum!",
-        grace_period_s = 10,
+        
 
 		-- Scanning settings
 		use_mouseover_scan = false,
