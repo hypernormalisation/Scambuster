@@ -22,6 +22,7 @@ CP.defaults = {
 		welcome_message = true,
 
 		-- alert settings
+		alert_lockout_seconds = 900,
         grace_period_s = 10,
 
 		use_chat_alert = true,
@@ -41,9 +42,8 @@ CP.defaults = {
 		use_group_scan = true,
 		use_group_request_scan = true,
 		use_trade_scan = true,
-		alert_lockout_seconds = 900,
 
-		-- Report generation settings
+		-- Report matching settings
 		minimum_level = 1,
 		require_guid_match = false,
 		match_all_incidents = true,  -- when GUID match, also present name-matched incidents
