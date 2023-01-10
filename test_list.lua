@@ -11,7 +11,7 @@ local case_data_1 = {
         guid = "Player-GDSAKG-53295G",
         category = "gdkp",
         description = "Stole all the gold from a gdkp.",
-        url = "some_other_url",
+        url = "some_other_url.com",
         aliases = {"Raegar"},
     },
     [1] = {
@@ -19,21 +19,21 @@ local case_data_1 = {
         guid = "Player-GDDFDG-535321",
         category = "dungeon",
         description = "Ninja needed an item they could not use.",
-        url = "some_other_url_again",
+        url = "some_other_url_again.com",
     },
     [2] = {
         name = "Swedger",
-        guid = "Player-4904-0079C620",
+        -- guid = "Player-4904-0079C620",
         --guid = "SOME-WRONG-GUID",
         category = "raid",
         description = "Some description.",
-        url = "some_other_url",
+        url = "some_other_url.com",
     },
     [3] = {
         name = "Swodger",
         category = "raid",
         description = "Some description for incident with Swodger.",
-        url = "yet_another_url",
+        url = "yet_another_url.com",
     },
     [4] = {
         players = {
@@ -52,8 +52,8 @@ local case_data_1 = {
 }
 
 local test_bl_1 = {
-    name = "Golemagg EU Discord Blocklist",
-    provider = "Golemagg EU Discord",
+    name = "Golemagg Discord Blocklist",
+    provider = "Golemagg Discord",
     description = "Realm discord for the Golemagg EU realm.",
     url = "some_url",
     realm_data = {
@@ -67,13 +67,13 @@ local case_data_2 = {
         name = "Arthas",
         guid = "Player-GDDFDG-535321",
         reason = "Trade Scam",
-        url = "some_other_url_yet_again",
+        url = "some_other_url_yet_again.com",
     },
     [1] = {
         name = "Thrall",
         guid = "Player-GDSAKG-53295G",
         reason = "Raid Scam",
-        url = "some_other_url",
+        url = "some_other_url.com",
         aliases = {"Durotan"},
         previous_guids = {"Player-GJNGDS-2532FHG"},
     },
@@ -88,7 +88,7 @@ local test_bl_2 = {
     name = "Orcs Anonymous Blocklist",
     provider = "ZugZug",
     description = "List of orcs who didn't zug.",
-    url = "zug_url",
+    url = "zug_url.com/nozuggers",
     realm_data = {
         [realm] = case_data_2,
     }
@@ -96,11 +96,13 @@ local test_bl_2 = {
 
 -- Register both the lists with Cutpurse, emulating extension addons.
 local CP = LibStub("AceAddon-3.0"):GetAddon("Cutpurse")
-CP.RegisterCallback(
-    CP, "CUTPURSE_LIST_CONSTRUCTION",
-    function()
-        CP:Print("DEBUG: Cutpurse internal test list enabled and loaded.")
-        CP:register_case_data(test_bl_1)
-        CP:register_case_data(test_bl_2)
-    end
-)
+if cp.add_test_list then
+    CP.RegisterCallback(
+        CP, "CUTPURSE_LIST_CONSTRUCTION",
+        function()
+            CP:Print("DEBUG: Cutpurse internal test list enabled and loaded.")
+            CP:register_case_data(test_bl_1)
+            -- CP:register_case_data(test_bl_2)
+        end
+    )
+end
