@@ -490,7 +490,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 		name_match_incidents = self:return_viable_incidents(true)
 	end
 	if (not guid_match_incidents) and (not name_match_incidents) then
-		self:Print("No viable matches")
+		-- self:Print("No viable matches")
 		return
 	end
 	-- self:Print("Found some matching incidents.")
@@ -517,7 +517,7 @@ function CP:is_off_alert_lockout()
 	local delta = self:get_opts_db().alert_lockout_seconds
 	if GetTime() < delta + udi[index].last_alerted then
 		local time_until = delta + udi[index].last_alerted - GetTime()
-		self:Print(string.format("locked out for another %f seconds", time_until))
+		-- self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
 	udi[index].last_alerted = GetTime()
