@@ -23,7 +23,6 @@ CP.defaults = {
 
 		-- alert settings
 		alert_lockout_seconds = 900,
-        grace_period_s = 10,
 
 		use_chat_alert = true,
 		use_group_chat_alert = true,
@@ -182,13 +181,21 @@ CP.options = {
 				end
 			end
 		},
+
+
+		-- Alerts settings
+		alerts_header = {
+			order = 4.0,
+			type = "header",
+			name = "Alerts Behaviour",
+		},
 		lb1 = {
-			order = 3.9,
+			order = 4.1,
 			type = "description",
 			name = "To avoid spam, Cutpurse will only generate warnings for a given scammer once per a lockout period, configurable below.",
 		},
 		alert_lockout_seconds = {
-			order = 3.91,
+			order = 4.2,
 			type = "range",
 			name = "Alert Lockout (s)",
 			desc = "The period during which the addon will not generate alerts for "..
@@ -200,13 +207,6 @@ CP.options = {
 			bigStep = 10,
 			get = "opts_getter",
 			set = "opts_setter",
-		},
-
-		-- Alerts settings
-		alerts_header = {
-			order = 4.0,
-			type = "header",
-			name = "Alerts Behaviour",
 		},
 		alerts_desc = {
 			order = 4.1,
