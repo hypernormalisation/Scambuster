@@ -1,8 +1,8 @@
 --=========================================================================================
 -- This module contains test lists for debugging and development purposes.
 --=========================================================================================
-local _, cp = ...
-if not cp.add_test_list then return end
+local addon_name, sb = ...
+if not sb.add_test_list then return end
 local realm = GetRealmName()
 
 local case_data_1 = {
@@ -95,13 +95,13 @@ local test_bl_2 = {
 }
 
 -- Register both the lists with Cutpurse, emulating extension addons.
-local CP = LibStub("AceAddon-3.0"):GetAddon("Cutpurse")
-if cp.add_test_list then
-    CP.RegisterCallback(
-        CP, "CUTPURSE_LIST_CONSTRUCTION",
+local SB = LibStub("AceAddon-3.0"):GetAddon(addon_name)
+if sb.add_test_list then
+    SB.RegisterCallback(
+        SB, "SCAMBUSTER_LIST_CONSTRUCTION",
         function()
-            CP:Print("DEBUG: Cutpurse internal test list enabled and loaded.")
-            CP:register_case_data(test_bl_1)
+            SB:Print("DEBUG: internal test list enabled and loaded.")
+            SB:register_case_data(test_bl_1)
             -- CP:register_case_data(test_bl_2)
         end
     )
