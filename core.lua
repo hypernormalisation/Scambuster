@@ -1,14 +1,14 @@
 --=========================================================================================
--- Main module for Cutpurse
+-- Main module for Scambuster
 --=========================================================================================
-local addon_name, cp = ...
-local CP = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
-CP.callbacks = CP.callbacks or LibStub("CallbackHandler-1.0"):New(CP)
+local addon_name, sb = ...
+local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
+SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
-cp.debug = false
-cp.add_test_list = true
-local L = cp.L
-if cp.debug then CP:Print("Parsing core.lua...") end
+sb.debug = false
+sb.add_test_list = true
+local L = sb.L
+if sb.debug then SB:Print("Parsing core.lua...") end
 
 -- Load some relevant wow API and lua globals into the local namespace.
 local GetInviteConfirmationInfo = GetInviteConfirmationInfo
@@ -60,9 +60,9 @@ local function tab_dump(o)
 	   return tostring(o)
 	end
 end
-CP.tab_dump = tab_dump
+SB.tab_dump = tab_dump
 
-function CP:colorise_name(name, class)
+function SB:colorise_name(name, class)
 	local c = RAID_CLASS_COLORS[class]
 	local cc = ('c' .. c.colorStr)
 	return "|"..cc..name.."|r"
@@ -99,42 +99,42 @@ local english_locale_classes = {
 	WARLOCK = "Warlock",
 }
 
-CP.guid_match_str = "This player's ID matches the following incidents:"
-CP.name_match_str = "This player's name matches the following incidents (name matches may not be conclusive):"
-CP.unprocessed_case_data = {}
-CP.provider_counter = 0
+SB.guid_match_str = "This player's ID matches the following incidents:"
+SB.name_match_str = "This player's name matches the following incidents (name matches may not be conclusive):"
+SB.unprocessed_case_data = {}
+SB.provider_counter = 0
 
 --=========================================================================================
 -- Helper funcs
 --=========================================================================================
-function CP:get_opts_db()
+function SB:get_opts_db()
 	return self.db.profile
 end
 
-function CP:get_provider_settings()
+function SB:get_provider_settings()
 	return self.db.global.provider_settings
 end
 
-function CP:get_UDI()
+function SB:get_UDI()
 	return self.db.global.udi
 end
 
 --=========================================================================================
 -- The basic AceAddon structure
 --=========================================================================================
-function CP:OnInitialize()
+function SB:OnInitialize()
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
-		"sound", "Cutpurse: Criminal scum!",
+		"sound", "Scambuster: Criminal scum!",
 		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "Cutpurse: Not on my watch!",
+		"sound", "Scambuster: Not on my watch!",
 		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "Cutpurse: You've violated the law!",
+		"sound", "Scambuster: You've violated the law!",
 		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
 	)
 
@@ -150,7 +150,7 @@ function CP:OnInitialize()
 	self.optionsFrame = ACD:AddToBlizOptions(options_name, addon_name)
 
 	-- Register the necessary slash commands
-	self:RegisterChatCommand("cp", "slashcommand_options")
+	self:RegisterChatCommand("sb", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	self:RegisterChatCommand("dump_users", "dump_users")
 	self:RegisterChatCommand("dump_incidents", "dump_incidents")
@@ -171,12 +171,12 @@ function CP:OnInitialize()
 
 end
 
-function CP:OnEnable()
+function SB:OnEnable()
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
 
 	-- Alert the extension addons to register their case data.
-	self.callbacks:Fire("CUTPURSE_LIST_CONSTRUCTION")
+	self.callbacks:Fire("SCAMBUSTER_LIST_CONSTRUCTION")
 	-- Then build the database.
 	self:build_database()
 
@@ -213,12 +213,12 @@ function CP:OnEnable()
 end
 
 --=========================================================================================
--- Funcs to register lists with Cutpurse, for use in addons that extend Cutpurse, and
+-- Funcs to register lists with Scambuster, for use in addons that extend Scambuster, and
 -- funcs to construct the lists used by the addon.
 --=========================================================================================
-function CP:register_case_data(data)
+function SB:register_case_data(data)
 	-- Function to be called in provider extentions upon receiving
-	-- the CUTPURSE_LIST_CONSTRUCTION callback.
+	-- the SCAMBUSTER_LIST_CONSTRUCTION callback.
 	-- This function takes a table of case data vars with integer keys.
 	-- self:Print("CALL TO REGISTER A LIST")
 	-- print(tab_dump(data))
@@ -229,11 +229,11 @@ function CP:register_case_data(data)
 	self.unprocessed_case_data[self.provider_counter] = data
 end
 
-function CP:build_database()
+function SB:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
-	if cp.debug then
-		self:Print("Building Cutpurse database...")
+	if sb.debug then
+		self:Print("Building Scambuster database...")
 	end
 	-- A table mapping GUIDs to User info tables.
 	self.user_table = {}
@@ -266,7 +266,7 @@ function CP:build_database()
 	-- self:database_post_processing()
 end
 
-function CP:protected_process_provider(l)
+function SB:protected_process_provider(l)
 	-- Wrap the parse of the unprocessed provider data in a pcall
 	-- to catch errors.
 	local result = pcall(self.process_provider, l)
@@ -277,14 +277,14 @@ function CP:protected_process_provider(l)
 				"ERROR: the provider list %s could not be properly processed. "..
 				"Please contact the distributer of this list and disable the extension "..
 				"module until a fix is provided by the distributer, as this list may "..
-				"corrupt Cutpurse's internal databases.",
+				"corrupt Scambuster's internal databases.",
 				name
 			)
 		)
 	end
 end
 
-function CP:process_provider(l)
+function SB:process_provider(l)
 	-- Takes the given case data for a single provider and adds
 	-- it to the database.
 	for realm, realm_dict in pairs(l.realm_data) do
@@ -308,7 +308,7 @@ function CP:process_provider(l)
 	end
 end
 
-function CP:process_players(case_data)
+function SB:process_players(case_data)
 	-- This function handles parsing of incidents with multiple players.
 	for _, player_info in pairs(case_data.players) do
 		if player_info.guid then
@@ -319,7 +319,7 @@ function CP:process_players(case_data)
 	end
 end
 
-function CP:process_player_by_guid(input)
+function SB:process_player_by_guid(input)
 	-- This function processes an individual case where a guid
 	-- is given in the case data. If a user entry already exists for this
 	-- guid, it merges the information. Else, it creates a new user entry.
@@ -368,7 +368,7 @@ function CP:process_player_by_guid(input)
 	self.user_table[input.guid] = t
 end
 
-function CP:process_incident(case_data)
+function SB:process_incident(case_data)
 	-- Adds the incident to the db, ensuring it's linked
 	-- to either a guid or name in the lookup.
 	self.incident_counter = self.incident_counter + 1
@@ -395,7 +395,7 @@ function CP:process_incident(case_data)
 	end
 end
 
-function CP:reference_incident_to_player(input)
+function SB:reference_incident_to_player(input)
 	-- Creates a reference between a single player and the incident in question.
 	-- input will either be the table for the whole case for a single player,
 	-- or alternately a player_info table for each player in the case.
@@ -413,7 +413,7 @@ end
 --=========================================================================================
 -- Unit checking functionality.
 --=========================================================================================
-function CP:is_unit_eligible(unit_token)
+function SB:is_unit_eligible(unit_token)
 	-- Function to get info using the specified unit_token and
 	-- verify the unit in question is another same-faction player.
 	if not UnitIsPlayer(unit_token) then
@@ -429,7 +429,7 @@ function CP:is_unit_eligible(unit_token)
 	return true
 end
 
-function CP:check_unit(unit_token, unit_guid, scan_context)
+function SB:check_unit(unit_token, unit_guid, scan_context)
 	-- Checks a unit against the lists.
 	-- Requires one of unit_token or unit_guid.
 	-- The scan_context is required to tell the alerts system what scan
@@ -500,7 +500,7 @@ function CP:check_unit(unit_token, unit_guid, scan_context)
 
 end
 
-function CP:is_off_alert_lockout()
+function SB:is_off_alert_lockout()
 	-- This function determines if a given unit is on alert lockout.
 	-- Also sets the last_alerted variables if off lockout. Returns true or false.
 	local udi = self:get_UDI()
@@ -524,7 +524,7 @@ function CP:is_off_alert_lockout()
 	return true
 end
 
-function CP:return_viable_incidents(force_name_match)
+function SB:return_viable_incidents(force_name_match)
 	-- Function to parse the incidents and return
 	-- a list of ones meeting the player's requirements for alerts.
 	-- Returns a table of incidents if any match.
@@ -559,7 +559,7 @@ function CP:return_viable_incidents(force_name_match)
 	return incident_table
 end
 
-function CP:should_add_incident(incident)
+function SB:should_add_incident(incident)
 	-- Checks the given incident meets the user's requirements
 	-- for generating an alert.
 	local conf = self:get_opts_db()
@@ -587,7 +587,7 @@ function CP:should_add_incident(incident)
 	return false
 end
 
-function CP:update_UDI()
+function SB:update_UDI()
 	-- This function runs when we interact with a scammer and records some of their
 	-- information to persistant storage (User Dynamic Information table).
 	local udi = self:get_UDI()
@@ -649,7 +649,7 @@ end
 --=========================================================================================
 -- String construction for alerts
 --=========================================================================================
-function CP:construct_printout_headline()
+function SB:construct_printout_headline()
 	-- Constructs a summary string for the pinged unit.
 	local q = self.query
 	local udi = self:get_UDI()
@@ -672,49 +672,7 @@ function CP:construct_printout_headline()
 	q.headline = s1
 end
 
--- function CP:construct_incident_summaries()
--- 	-- Construct summary strings for the incidents for the unit.
--- 	local q = self.query
--- 	local counter = 0
--- 	if q.guid_match_incidents then
--- 		q.guid_incident_summaries = {}
--- 		for _, incident in pairs(q.guid_match_incidents) do
--- 			local s = "    Listed by " .. incident.provider
--- 			if incident.category and incident_categories[incident.category] then
--- 				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
--- 			else
--- 				s = s .. ":\n"
--- 			end
--- 			if incident.description then
--- 				s = s .. "    - " .. incident.description .. '\n'
--- 			end
--- 			s = s .. "    - " .. incident.url .. '\n'
--- 			-- print(s)
--- 			q.guid_incident_summaries[counter] = s
--- 			counter = counter + 1
--- 		end
--- 	end
--- 	if q.name_match_incidents then
--- 		q.name_incident_summaries = {}
--- 		for _, incident in pairs(q.name_match_incidents) do
--- 			local s = "    Listed by " .. incident.provider
--- 			if incident.category and incident_categories[incident.category] then
--- 				s = s .. string.format(" for %s:\n", incident_categories[incident.category])
--- 			else
--- 				s = s .. ":\n"
--- 			end
--- 			if incident.description then
--- 				s = s .. "    - " .. incident.description .. '\n'
--- 			end
--- 			s = s .. "    - " .. incident.url .. '\n'
--- 			-- print(s)
--- 			q.name_incident_summaries[counter] = s
--- 			counter = counter + 1
--- 		end
--- 	end
--- end
-
-function CP:construct_chat_strings()
+function SB:construct_chat_strings()
 	-- Constructs the necessary strings for channel alerts.
 	local q = self.query
 
@@ -755,7 +713,7 @@ end
 --=========================================================================================
 -- Alert functionality.
 --=========================================================================================
-function CP:play_alert_sound()
+function SB:play_alert_sound()
 	-- Plays the configured alert sound in the client.
 	local k = self:get_opts_db().alert_sound
 	-- self:Print('playing alert, sound key = '..tostring(k))
@@ -763,7 +721,7 @@ function CP:play_alert_sound()
 	PlaySoundFile(sound_file)
 end
 
-function CP:print_chat_alert()
+function SB:print_chat_alert()
 	-- Prints an alert to the chatbox, just to the player.
 	local conf = self:get_opts_db()
 	local q = self.query
@@ -779,7 +737,7 @@ function CP:print_chat_alert()
 	self:Print(s)
 end
 
-function CP:send_channel_alert(channel)
+function SB:send_channel_alert(channel)
 	-- Sends a chat alert to the requested channel.
 	local conf = self:get_opts_db()
 	local q = self.query
@@ -794,7 +752,7 @@ function CP:send_channel_alert(channel)
 	end
 end
 
-function CP:raise_alert()
+function SB:raise_alert()
 	-- This function acts upon the internal query object to produce
 	-- a report on the unit that has been flagged, and alerts the user
 	-- using the configured methods.
@@ -827,13 +785,13 @@ end
 --=========================================================================================
 -- WoW API callbacks
 --=========================================================================================
-function CP:UPDATE_MOUSEOVER_UNIT()
+function SB:UPDATE_MOUSEOVER_UNIT()
 	if not self:get_opts_db().use_mouseover_scan then return end
 	if not self:is_unit_eligible("mouseover") then return end
 	self:check_unit("mouseover")
 end
 
-function CP:CHAT_MSG_WHISPER(
+function SB:CHAT_MSG_WHISPER(
 		event_name, msg, player_name_realm,
 		_, _, player_name, _, _, _, _, _, line_id, player_guid
 	)
@@ -841,13 +799,13 @@ function CP:CHAT_MSG_WHISPER(
 	self:check_unit(nil, player_guid, "whisper")
 end
 
-function CP:PLAYER_TARGET_CHANGED()
+function SB:PLAYER_TARGET_CHANGED()
 	if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
 	self:check_unit("target")
 end
 
-function CP:GROUP_ROSTER_UPDATE()
+function SB:GROUP_ROSTER_UPDATE()
 	local members = {}
 	if not IsInGroup(LE_PARTY_CATEGORY_HOME) then
 		-- print("not in a group")
@@ -873,7 +831,7 @@ function CP:GROUP_ROSTER_UPDATE()
 	end
 end
 
-function CP:GROUP_INVITE_CONFIRMATION()
+function SB:GROUP_INVITE_CONFIRMATION()
 	-- This event is called when another player requests to join the group, either
 	-- via interacting with the player directly or through the group finder, or when a party member
 	-- suggests an invite. We can use the API funcs in this callback to programatically get the info
@@ -884,7 +842,7 @@ function CP:GROUP_INVITE_CONFIRMATION()
 	self:check_unit(nil, guid, "invite_confirmation")
 end
 
-function CP:TRADE_SHOW()
+function SB:TRADE_SHOW()
 	-- This event is called when the trade window is opened.
 	-- We can use the special "NPC" unit to get info we need on the
 	-- character. See
@@ -897,42 +855,42 @@ end
 --=========================================================================================
 -- Register slashcommands
 --=========================================================================================
-function CP:slashcommand_options(input, editbox)
+function SB:slashcommand_options(input, editbox)
 	local ACD = LibStub("AceConfigDialog-3.0")
 	ACD:Open(addon_name.."_Options")
 end
 
-function CP:dump_users()
+function SB:dump_users()
 	print(tab_dump(self.user_table))
 end
 
-function CP:dump_incidents()
+function SB:dump_incidents()
 	print(tab_dump(self.incident_table))
 end
 
-function CP:dump_name_lookup()
+function SB:dump_name_lookup()
 	print(tab_dump(self.name_to_incident_table))
 end
 
-function CP:dump_udi()
+function SB:dump_udi()
 	print(tab_dump(self:get_UDI()))
 end
 
-function CP:clear_udi()
+function SB:clear_udi()
 	self.db.global.udi = {}
 end
 
-function CP:clear_fps()
+function SB:clear_fps()
 	-- Clear false positive table
 	self.db.global.false_positive_table = {}
 end
 
-function CP:slashcommand_soundcheck()
+function SB:slashcommand_soundcheck()
 	local sound_file = LSM:Fetch('sound', self.conf.alert_sound)
 	PlaySoundFile(sound_file)
 end
 
-function CP:test1()
+function SB:test1()
 	self:Print("N alerts global = " .. tostring(self.db.global.n_alerts))
 	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
 end
@@ -940,4 +898,4 @@ end
 --=========================================================================================
 -- Debug for lua parsing
 --=========================================================================================
-if cp.debug then CP:Print("Finished parsing core.lua.") end
+if sb.debug then SB:Print("Finished parsing core.lua.") end

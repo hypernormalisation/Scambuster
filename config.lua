@@ -1,13 +1,13 @@
 --=========================================================================================
 -- Options tables and config module.
 --=========================================================================================
-local addon_name, cp = ...
-CP = LibStub("AceAddon-3.0"):GetAddon(addon_name)
+local addon_name, sb = ...
+SB = LibStub("AceAddon-3.0"):GetAddon(addon_name)
 local LSM = LibStub("LibSharedMedia-3.0")
-local L = cp.L
+local L = sb.L
 
 -- Default addon settings
-CP.defaults = {
+SB.defaults = {
 	global = {
 		n_alerts = 0,
 		udi = {},
@@ -31,7 +31,7 @@ CP.defaults = {
 		use_gui_alert = true, -- placeholder
 
 		use_alert_sound = true,
-		alert_sound = "Cutpurse: Criminal Scum!",
+		alert_sound = "Scambuster: Criminal Scum!",
         
 
 		-- Scanning settings
@@ -62,10 +62,10 @@ CP.defaults = {
 }
 
 -- The options table
-CP.options = {
+SB.options = {
 	type = "group",
-	name = "Cutpurse",
-	handler = CP,
+	name = "Scambuster",
+	handler = SB,
 	args = {
 
 		-- General
@@ -88,8 +88,8 @@ CP.options = {
 		scan_desc = {
 			order = 3.01,
 			type = "description",
-			name = "Cutpurse can protect you from scammers by running various scans on players you interact with."..
-				" This section allows you to control in what ways Cutpurse will do this."
+			name = "Scambuster can protect you from scammers by running various scans on players you interact with."..
+				" This section allows you to control in what ways Scambuster will do this."
 		},
 		use_mouseover_scan = {
 			order = 3.2,
@@ -98,11 +98,11 @@ CP.options = {
 			desc = "If enabled, will check any mouseover players against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_mouseover_scan = value
+				SB.db.profile.use_mouseover_scan = value
 				if value then
-					CP:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+					SB:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 				else
-					CP:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+					SB:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
 				end
 			end,		},
 		use_whisper_scan = {
@@ -112,11 +112,11 @@ CP.options = {
 			desc = "If enabled, will check any players whispering you against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_whisper_scan = value
+				SB.db.profile.use_whisper_scan = value
 				if value then
-					CP:RegisterEvent("CHAT_MSG_WHISPER")
+					SB:RegisterEvent("CHAT_MSG_WHISPER")
 				else
-					CP:UnregisterEvent("CHAT_MSG_WHISPER")
+					SB:UnregisterEvent("CHAT_MSG_WHISPER")
 				end
 			end,
 		},
@@ -127,11 +127,11 @@ CP.options = {
 			desc = "If enabled, will check any players you target against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_target_scan = value
+				SB.db.profile.use_target_scan = value
 				if value then
-					CP:RegisterEvent("PLAYER_TARGET_CHANGED")
+					SB:RegisterEvent("PLAYER_TARGET_CHANGED")
 				else
-					CP:UnregisterEvent("PLAYER_TARGET_CHANGED")
+					SB:UnregisterEvent("PLAYER_TARGET_CHANGED")
 				end
 			end
 		},
@@ -142,11 +142,11 @@ CP.options = {
 			desc = "If enabled, will check any players in your party or raid agaist the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_group_scan = value
+				SB.db.profile.use_group_scan = value
 				if value then
-					CP:RegisterEvent("GROUP_ROSTER_UPDATE")
+					SB:RegisterEvent("GROUP_ROSTER_UPDATE")
 				else
-					CP:UnregisterEvent("GROUP_ROSTER_UPDATE")
+					SB:UnregisterEvent("GROUP_ROSTER_UPDATE")
 				end
 			end
 		},
@@ -158,11 +158,11 @@ CP.options = {
 				"group member or via the group finder tool.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_group_request_scan = value
+				SB.db.profile.use_group_request_scan = value
 				if value then
-					CP:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+					SB:RegisterEvent("GROUP_INVITE_CONFIRMATION")
 				else
-					CP:UnregisterEvent("GROUP_INVITE_CONFIRMATION")
+					SB:UnregisterEvent("GROUP_INVITE_CONFIRMATION")
 				end
 			end
 		},
@@ -173,11 +173,11 @@ CP.options = {
 			desc = "If enabled, will check any trade partners against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				CP.db.profile.use_trade_scan = value
+				SB.db.profile.use_trade_scan = value
 				if value then
-					CP:RegisterEvent("TRADE_SHOW")
+					SB:RegisterEvent("TRADE_SHOW")
 				else
-					CP:UnregisterEvent("TRADE_SHOW")
+					SB:UnregisterEvent("TRADE_SHOW")
 				end
 			end
 		},
@@ -192,7 +192,7 @@ CP.options = {
 		lb1 = {
 			order = 4.1,
 			type = "description",
-			name = "To avoid spam, Cutpurse will only generate warnings for a given scammer once per a lockout period, configurable below.",
+			name = "To avoid spam, Scambuster will only generate warnings for a given scammer once per a lockout period, configurable below.",
 		},
 		alert_lockout_seconds = {
 			order = 4.2,
@@ -211,13 +211,13 @@ CP.options = {
 		alerts_desc = {
 			order = 4.1,
 			type = "description",
-			name = "Cutpurse can alert you when you encounter a scammer in a number of ways."
+			name = "Scambuster can alert you when you encounter a scammer in a number of ways."
 		},
 		use_chat_alert = {
 			order = 4.2,
 			type = "toggle",
 			name = "Chat panel",
-			desc = "If enabled, Cutpurse will print a summary of the scanner's information to the chat panel when an alert is raised.",
+			desc = "If enabled, Scambuster will print a summary of the scanner's information to the chat panel when an alert is raised.",
 			get = "opts_getter",
 			set = "opts_setter,"
 		},
@@ -225,7 +225,7 @@ CP.options = {
 			order = 4.3,
 			type = "toggle",
 			name = "Audio Alert",
-			desc = "If enabled, Cutpurse will play an audio cue when an alert is raised.",
+			desc = "If enabled, Scambuster will play an audio cue when an alert is raised.",
 			get = "opts_getter",
 			set = "opts_setter",
 		},
@@ -238,18 +238,18 @@ CP.options = {
 			values = LSM:HashTable("sound"),
 			get = "opts_getter",
 			set = "opts_setter",
-			disabled = function() return not CP.db.profile.use_alert_sound end,
+			disabled = function() return not SB.db.profile.use_alert_sound end,
 		},
 	}
 }
 
 -- Generic getters and setters
-function CP:opts_getter(info)
+function SB:opts_getter(info)
 	return self.db.profile[info[#info]]
 end
 
-function CP:opts_setter(info, value)
+function SB:opts_setter(info, value)
 	self.db.profile[info[#info]] = value
 end
 
-if cp.debug then CP:Print("Finished parsing config.lua.") end
+if sb.debug then SB:Print("Finished parsing config.lua.") end
