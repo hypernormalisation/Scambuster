@@ -44,3 +44,6 @@ luac.out
 
 # Bigwigs Packaging
 .release/**
+
+# Editor
+.vscode/**
