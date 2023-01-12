@@ -1,5 +1,5 @@
 ## Interface: 30400
-## Title: Cutpurse
+## Title: Scambuster
 ## Notes: Framework for protecting yourself from in-game scammers
 ## Author: Swedge
 ## Version: "@project-version@"
