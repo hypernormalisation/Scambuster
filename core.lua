@@ -6,7 +6,7 @@ local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
 sb.debug = false
-sb.add_test_list = true
+sb.add_test_list = false
 local L = sb.L
 if sb.debug then SB:Print("Parsing core.lua...") end
 
@@ -105,6 +105,12 @@ SB.scan_table = {
 	},
 }
 
+SB.levels = {
+	[1] = "Reformed",
+	[2] = "Probation",
+	[3] = "Scammer",
+}
+
 -- Necessary for localization due to the lower case classes being localized.
 local english_locale_classes = {
 	DEATHKNIGHT = "Death Knight",
@@ -144,15 +150,15 @@ function SB:OnInitialize()
 
 	-- Register our custom sound alerts with LibSharedMedia
 	LSM:Register(
-		"sound", "Scambuster: Criminal scum!",
+		"sound", "SB Criminal scum",
 		string.format([[Interface\Addons\%s\media\criminal_scum.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "Scambuster: Not on my watch!",
+		"sound", "SB Not on my watch",
 		string.format([[Interface\Addons\%s\media\nobody_breaks_the_law.mp3]], addon_name)
 	)
 	LSM:Register(
-		"sound", "Scambuster: You've violated the law!",
+		"sound", "SB Violated the law",
 		string.format([[Interface\Addons\%s\media\youve_violated_the_law.mp3]], addon_name)
 	)
 
@@ -169,6 +175,7 @@ function SB:OnInitialize()
 
 	-- Register the necessary slash commands
 	self:RegisterChatCommand("sb", "slashcommand_options")
+	self:RegisterChatCommand("scambuster", "slashcommand_options")
 	self:RegisterChatCommand("cutpurse", "slashcommand_options")
 	self:RegisterChatCommand("dump_users", "dump_users")
 	self:RegisterChatCommand("dump_incidents", "dump_incidents")
@@ -615,8 +622,20 @@ function SB:should_add_incident(incident)
 
 	-- If category exists, check it's not excluded.
 	else
-		if conf.exclusions[incident.category] == false then
+		for category, enabled in pairs(conf.categories) do
+			if category == incident.category then
+				if enabled then
+					return true
+				else
+					return false
+				end
+			end
+		end
+		-- if we get to here, category not recognised, so check against "other".
+		if conf.categories.other then
 			return true
+		else
+			return false
 		end
 	end
 	return false
@@ -751,7 +770,7 @@ end
 --=========================================================================================
 function SB:play_alert_sound()
 	-- Plays the configured alert sound in the client.
-	local k = self:get_opts_db().alert_sound
+	local k = self:get_opts_db().alert_sound_key
 	-- self:Print('playing alert, sound key = '..tostring(k))
 	local sound_file = LSM:Fetch('sound', k)
 	PlaySoundFile(sound_file)
