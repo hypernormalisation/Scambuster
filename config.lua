@@ -2,7 +2,7 @@
 -- Options tables and config module.
 --=========================================================================================
 local addon_name, sb = ...
-SB = LibStub("AceAddon-3.0"):GetAddon(addon_name)
+local SB = LibStub("AceAddon-3.0"):GetAddon(addon_name)
 local LSM = LibStub("LibSharedMedia-3.0")
 local L = sb.L
 
@@ -32,15 +32,34 @@ SB.defaults = {
 
 		use_alert_sound = true,
 		alert_sound = "Scambuster: Criminal Scum!",
-        
 
 		-- Scanning settings
-		use_mouseover_scan = false,
-		use_whisper_scan = true,
-		use_target_scan = true,
-		use_group_scan = true,
-		use_group_request_scan = true,
-		use_trade_scan = true,
+		scans = {
+			mouseover = {
+				enabled = false,
+				disable_in_instance = true,
+			},
+			target = {
+				enabled = true,
+				disable_in_instance = true,
+			},
+			whisper = {
+				enabled = true,
+				disable_in_instance = true,
+			},
+			trade = {
+				enabled = true,
+				disable_in_instance = true,
+			},
+			group = {
+				enabled = true,
+				disable_in_instance = false,
+			},
+			invite_confirmation = {
+				enabled = true,
+				disable_in_instance = false,
+			},
+		},
 
 		-- Report matching settings
 		minimum_level = 1,
@@ -98,13 +117,10 @@ SB.options = {
 			desc = "If enabled, will check any mouseover players against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_mouseover_scan = value
-				if value then
-					SB:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-				else
-					SB:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
-				end
-			end,		},
+				SB.db.profile.scans.mouseover = value
+				SB:set_scan_events()
+			end,
+		},
 		use_whisper_scan = {
 			order = 3.3,
 			type = "toggle",
@@ -112,12 +128,8 @@ SB.options = {
 			desc = "If enabled, will check any players whispering you against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_whisper_scan = value
-				if value then
-					SB:RegisterEvent("CHAT_MSG_WHISPER")
-				else
-					SB:UnregisterEvent("CHAT_MSG_WHISPER")
-				end
+				SB.db.profile.scans.whisper = value
+				SB:set_scan_events()
 			end,
 		},
 		use_target_scan = {
@@ -127,12 +139,8 @@ SB.options = {
 			desc = "If enabled, will check any players you target against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_target_scan = value
-				if value then
-					SB:RegisterEvent("PLAYER_TARGET_CHANGED")
-				else
-					SB:UnregisterEvent("PLAYER_TARGET_CHANGED")
-				end
+				SB.db.profile.scans.target = value
+				SB:set_scan_events()
 			end
 		},
 		use_group_scan = {
@@ -142,12 +150,8 @@ SB.options = {
 			desc = "If enabled, will check any players in your party or raid agaist the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_group_scan = value
-				if value then
-					SB:RegisterEvent("GROUP_ROSTER_UPDATE")
-				else
-					SB:UnregisterEvent("GROUP_ROSTER_UPDATE")
-				end
+				SB.db.profile.scans.group = value
+				SB:set_scan_events()
 			end
 		},
 		use_group_request_scan = {
@@ -158,12 +162,8 @@ SB.options = {
 				"group member or via the group finder tool.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_group_request_scan = value
-				if value then
-					SB:RegisterEvent("GROUP_INVITE_CONFIRMATION")
-				else
-					SB:UnregisterEvent("GROUP_INVITE_CONFIRMATION")
-				end
+				SB.db.profile.scans.group = value
+				SB:set_scan_events()
 			end
 		},
 		use_trade_scan = {
@@ -173,12 +173,8 @@ SB.options = {
 			desc = "If enabled, will check any trade partners against the database.",
 			get = "opts_getter",
 			set = function(_, value)
-				SB.db.profile.use_trade_scan = value
-				if value then
-					SB:RegisterEvent("TRADE_SHOW")
-				else
-					SB:UnregisterEvent("TRADE_SHOW")
-				end
+				SB.db.profile.scans.trade = value
+				SB:set_scan_events()
 			end
 		},
 

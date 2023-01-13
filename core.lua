@@ -17,6 +17,7 @@ local GetUnitName = GetUnitName
 local GetTime = GetTime
 local GetPlayerInfoByGUID = GetPlayerInfoByGUID
 local GetRealmName = GetRealmName
+local IsInInstance = IsInInstance
 local IsInGroup = IsInGroup
 local IsInRaid = IsInRaid
 local PlaySoundFile = PlaySoundFile
@@ -68,21 +69,40 @@ function SB:colorise_name(name, class)
 	return "|"..cc..name.."|r"
 end
 
-local context_pretty_table = {
-	mouseover = "Mouseover",
-	target = "Target",
-	group = "Group",
-	invite_confirmation = "Invite Confirmation",
-	trade = "Trade Window",
-	whisper = "Whisper",
-}
-
 local incident_categories = {
-	["dungeon"] = "Dungeon Scam",
-	["raid"] = "Raid Scam",
-	["gdkp"] = "GDKP Scam",
-	["trade"] = "Trade Scam",
-	["harassment"] = "Harassment",
+	dungeon = "Dungeon Scam",
+	raid = "Raid Scam",
+	gdkp = "GDKP Scam",
+	trade = "Trade Scam",
+	harassment = "Harassment",
+}
+SB.incident_categories = incident_categories
+
+SB.scan_table = {
+	mouseover = {
+		event = "UPDATE_MOUSEOVER_UNIT",
+		pretty = "Mouseover",
+	},
+	target = {
+		event = "PLAYER_TARGET_CHANGED",
+		pretty = "Target",
+	},
+	trade = {
+		event = "TRADE_SHOW",
+		pretty = "Trade Window",
+	},
+	whisper = {
+		event = "CHAT_MSG_WHISPER",
+		pretty = "Whisper",
+	},
+	group = {
+		event = "GROUP_ROSTER_UPDATE",
+		pretty = "Group",
+	},
+	invite_confirmation = {
+		event = "GROUP_INVITE_CONFIRMATION",
+		pretty = "Invite Confirmation",
+	},
 }
 
 -- Necessary for localization due to the lower case classes being localized.
@@ -99,8 +119,6 @@ local english_locale_classes = {
 	WARLOCK = "Warlock",
 }
 
-SB.guid_match_str = "This player's ID matches the following incidents:"
-SB.name_match_str = "This player's name matches the following incidents (name matches may not be conclusive):"
 SB.unprocessed_case_data = {}
 SB.provider_counter = 0
 
@@ -162,16 +180,16 @@ function SB:OnInitialize()
 	self:RegisterChatCommand("clear_fps", "clear_fps")
 	self:RegisterChatCommand("test1", "test1")
 
-	-- Temporary 
-	-- self.provider_counter = 0
-
 	-- Containers for the alerts system.
 	self.alert_counter = 0  -- just for index handling on temp alerts list
 	self.pending_alerts = {}
 
+	self.first_enter_world = true
+
 end
 
 function SB:OnEnable()
+	local conf = self:get_opts_db()
 	self.realm_name = GetRealmName()
 	self.player_faction = UnitFactionGroup("player")
 
@@ -179,34 +197,11 @@ function SB:OnEnable()
 	self.callbacks:Fire("SCAMBUSTER_LIST_CONSTRUCTION")
 	-- Then build the database.
 	self:build_database()
+	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 
-	-- Enable the requisite events here according to settings.
-	local opts_db = self:get_opts_db()
-	if opts_db.use_mouseover_scan then
-		self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-	end
-	if opts_db.use_whisper_scan then
-		self:RegisterEvent("CHAT_MSG_WHISPER")
-	end
-	if opts_db.use_target_scan then
-		self:RegisterEvent("PLAYER_TARGET_CHANGED")
-	end
-	if opts_db.use_trade_scan then
-		self:RegisterEvent("TRADE_SHOW")
-	end
-	if opts_db.use_group_scan then
-		self:RegisterEvent("GROUP_ROSTER_UPDATE")
-	end
-	if opts_db.use_group_request_scan then
-		self:RegisterEvent("GROUP_INVITE_CONFIRMATION")
-	end
-	-- Only if in a group, run the group scan callback.
-	if opts_db.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
-		self:GROUP_ROSTER_UPDATE()
-	end
 
 	-- Welcome message if requested
-	if opts_db.welcome_message then
+	if conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
 	end
 
@@ -217,14 +212,7 @@ end
 -- funcs to construct the lists used by the addon.
 --=========================================================================================
 function SB:register_case_data(data)
-	-- Function to be called in provider extentions upon receiving
-	-- the SCAMBUSTER_LIST_CONSTRUCTION callback.
-	-- This function takes a table of case data vars with integer keys.
-	-- self:Print("CALL TO REGISTER A LIST")
-	-- print(tab_dump(data))
-
-	-- TO-DO: we should do some data validation here.
-
+	-- Function to be called in provider extentions
 	self.provider_counter = self.provider_counter + 1
 	self.unprocessed_case_data[self.provider_counter] = data
 end
@@ -312,7 +300,6 @@ function SB:build_database()
 			end
 		end
 	end
-	-- self:database_post_processing()
 end
 
 function SB:protected_process_provider(l)
@@ -485,7 +472,6 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	-- registered the unit. If a unit_token is given, it defaults to that.
 	-- If a unit token does not exist, as for whispers or invite
 	-- confirmations, it should be passed manually.
-
 	-- First check for a guid match.
 	local conf = self:get_opts_db()
 	unit_guid = unit_guid or UnitGUID(unit_token)
@@ -717,7 +703,8 @@ function SB:construct_printout_headline()
 	else
 		s1 = s1 .. string.format("%s %s", u.class_english_locale, name)
 	end
-	s1 = s1 .. string.format(", detected via %s scan.\nListed by:", q.scan_context)
+	local pretty = self.scan_table[q.scan_context].pretty
+	s1 = s1 .. string.format(", detected via %s scan.\nListed by:", pretty)
 	q.headline = s1
 end
 
@@ -849,6 +836,7 @@ function SB:CHAT_MSG_WHISPER(
 end
 
 function SB:PLAYER_TARGET_CHANGED()
+	-- self:Print("target change event")
 	if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
 	self:check_unit("target")
@@ -899,6 +887,50 @@ function SB:TRADE_SHOW()
 	-- The other relevant event for the trade is "TRADE_REQUEST", however we cannot
 	-- use it, because the "NPC" unit is only valid when the trade window is open.
 	self:check_unit("NPC", nil, "trade")
+end
+
+
+function SB:PLAYER_ENTERING_WORLD()
+	-- Determine if the player is in an instance and appropriately
+	-- register or unregister scanning events.
+	local conf = self:get_opts_db()
+	local b, code = IsInInstance()
+	local old_in_instance = self.in_instance
+	local old_instance_code = self.instance_code
+	self.in_instance = b
+	self.instance_code = code
+	if b ~= old_in_instance or code ~= old_instance_code then
+		self:set_scan_events()
+	end
+
+	if self.first_enter_world then
+		-- Only if in a home group, run the group scan callback.
+		if conf.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+			self:GROUP_ROSTER_UPDATE()
+		end
+		self.first_enter_world = false
+	end
+
+end
+
+function SB:set_scan_events()
+	-- Called whenever game loads, enter/leave instance, or 
+	-- setting change.
+	-- self:Print("Setting scan events")
+	local conf = self:get_opts_db()
+	for scan, t in pairs(self.scan_table) do
+		if conf.scans[scan].enabled then
+			self:RegisterEvent(t.event)
+		end
+	end
+	-- In instance
+	if self.in_instance then
+		for scan, t in pairs(self.scan_table) do
+			if conf.scans[scan].disable_in_instance then
+				self:UnregisterEvent(t.event)
+			end
+		end
+	end
 end
 
 --=========================================================================================
