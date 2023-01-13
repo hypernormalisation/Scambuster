@@ -229,6 +229,53 @@ function SB:register_case_data(data)
 	self.unprocessed_case_data[self.provider_counter] = data
 end
 
+function SB:validate_provider(t)
+	-- Does basic data validation on the given provider table
+	if not t.name or t.name == "" then
+		self:Print("ERROR: Missing provider name on provider, aborting import.")
+		return false
+	end
+	self:Print(string.format("INFO: Parsing provider list %s...", t.name))
+	for _, field_name in pairs({"provider", "description", "url"}) do
+		if t[field_name] == nil then
+			self:Print(string.format("ERROR: Missing field \"%s\", aborting import.", field_name))
+			return false
+		end
+		if not type(t[field_name]) or t[field_name] == "" then
+			self:Print(string.format("ERROR: Invalid field \"%s\", aborting import.", field_name))
+			return false
+		end
+	end
+	if not t.realm_data or t.realm_data == {} then
+		self:Print("ERROR: Missing or empty realm data, aborting import:")
+		return false
+	end
+	for realm, realm_table in pairs(t.realm_data) do
+		if not realm_table or type(realm_table) ~= "table" then
+			self:Print(string.format("ERROR: realm table for realm %s not valid, aborting import.", realm))
+			return false
+		end
+	end
+	local valid_fields = {
+		realm_data = true,
+		name = true,
+		provider = true,
+		url = true,
+		description = true,
+	}
+	for field, _ in pairs(t) do
+		if not valid_fields[field] then
+			self:Print(
+				string.format(
+					"WARNING: provider packages field \"%s\" which is not recognised and will be ignored.",
+					field
+				)
+			)
+		end
+	end
+	return true
+end
+
 function SB:build_database()
 	-- This function builds (or rebuilds) the database from the registered
 	-- raw lists from the provider extensions.
@@ -251,15 +298,17 @@ function SB:build_database()
 	-- Now iterate over the unprocessed case data and build up the db.
 	local pdb = self:get_provider_settings()
 	for _, l in pairs(self.unprocessed_case_data) do
-		local n = l.name
-		-- If no setting for this provider, assume enabled.
-		if pdb[n] == nil then
-			pdb[n] = {enabled = true}
-			self:process_provider(l)
-		-- Else check for disabled lists and skip
-		else
-			if pdb[n].enabled then
-				self:process_provider(l)
+		if self:validate_provider(l) then
+			local n = l.name
+			-- If no setting for this provider, assume enabled.
+			if pdb[n] == nil then
+				pdb[n] = {enabled = true}
+				self:protected_process_provider(l)
+			-- Else check for disabled lists and skip
+			else
+				if pdb[n].enabled then
+					self:protected_process_provider(l)
+				end
 			end
 		end
 	end
@@ -269,7 +318,7 @@ end
 function SB:protected_process_provider(l)
 	-- Wrap the parse of the unprocessed provider data in a pcall
 	-- to catch errors.
-	local result = pcall(self.process_provider, l)
+	local result = pcall(self.process_provider, self, l)
 	if not result then
 		local name = l.name or l.provider or "UNIDENTIFIED LIST"
 		self:Print(
