@@ -102,7 +102,7 @@ if sb.add_test_list then
         function()
             SB:Print("DEBUG: internal test list enabled and loaded.")
             SB:register_case_data(test_bl_1)
-            -- SB:register_case_data(test_bl_2)
+            SB:register_case_data(test_bl_2)
         end
     )
 end
