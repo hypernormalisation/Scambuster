@@ -1,6 +1,7 @@
 # Scambuster
 
-![scambusters](https://user-images.githubusercontent.com/52763122/212459976-355a11cb-6a9f-40fa-bb5c-06c7da505a75.png)
+<!-- ![scambusters](https://user-images.githubusercontent.com/52763122/212459976-355a11cb-6a9f-40fa-bb5c-06c7da505a75.png) -->
+<img src="https://user-images.githubusercontent.com/52763122/212459976-355a11cb-6a9f-40fa-bb5c-06c7da505a75.png" width="200" height="200">
 
 An addon and framework for alerting the user when they encounter a known scammer in WoW WotLK Classic.
 
