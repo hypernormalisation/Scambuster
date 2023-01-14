@@ -1,6 +1,6 @@
 # Scambuster
 
-![cutpurse_logo1.png](./media/cutpurse_logo1.png)
+![scambuster_logo.png](./media/scambuster_logo.png)
 
 An addon and framework for alerting the user when they encounter a known scammer in WoW Classic.
 
