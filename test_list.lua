@@ -26,8 +26,8 @@ local case_data_1 = {
         guid = "Player-4904-0079C620",
         --guid = "SOME-WRONG-GUID",
         category = "raid",
-        description = "Some description.",
-        url = "some_other_url.com",
+        description = "Failed to uphold the holy light and turned to shadow.",
+        url = "https://wowpedia.fandom.com/wiki/Holy",
     },
     [3] = {
         name = "Swodger",
@@ -39,7 +39,6 @@ local case_data_1 = {
         players = {
             [0] = {
                 name = "Swedger",
-                guid = "Player-4904-0079C620",
             },
             [1] = {
                 name = "Accomplice",
@@ -47,7 +46,7 @@ local case_data_1 = {
             }
         },
         category = "trade",
-        url = "some_url_with_two_players.com",
+        url = "https://wowpedia.fandom.com/wiki/Void",
     },
 }
 

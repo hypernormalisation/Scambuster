@@ -5,7 +5,7 @@ local addon_name, sb = ...
 local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
-sb.debug = true
+sb.debug = false
 sb.add_test_list = true
 local L = sb.L
 if sb.debug then SB:Print("Parsing core.lua...") end
@@ -58,6 +58,11 @@ local function tab_dump(o)
 	end
 end
 SB.tab_dump = tab_dump
+
+local function formatURL(url)
+    url = "|cff".."149bfd".."|Hurl:"..url.."|h["..url.."]|h|r ";
+    return url;
+end
 
 function SB:colorise_name(name, class)
 	local c = RAID_CLASS_COLORS[class]
@@ -760,8 +765,15 @@ function SB:construct_chat_strings()
 			if incident.category then
 				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
 			end
+			local s_personal = s
 			s = s .. " " .. incident.url
-			q.chat_incidents[incident.provider][incident.case_id] = {s = s, guid = true, incident=incident}
+			s_personal = s_personal .. " " .. formatURL(incident.url)
+			q.chat_incidents[incident.provider][incident.case_id] = {
+				s = s,
+				s_personal = s_personal,
+				guid = true,
+				incident=incident
+			}
 		end
 	end
 	-- The name-matched incidents
@@ -774,9 +786,17 @@ function SB:construct_chat_strings()
 			if incident.category then
 				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
 			end
+			local s_personal = s
 			s = s .. " " .. incident.url
 			s = s .. " (name-only)"
-			q.chat_incidents[incident.provider][incident.case_id] = {s = s, guid = false, incident=incident}
+			s_personal = s_personal .. " " .. formatURL(incident.url)
+			s_personal = s_personal .. " (name-only)"
+			q.chat_incidents[incident.provider][incident.case_id] = {
+				s = s,
+				s_personal = s_personal,
+				guid = false,
+				incident=incident
+			}
 		end
 	end
 end
@@ -799,7 +819,7 @@ function SB:print_chat_alert()
 	local s = q.headline .. '\n'
 	for _, provider_table in pairs(q.chat_incidents) do
 		for _, t in pairs(provider_table) do
-			s = s .. t.s .. '\n'
+			s = s .. t.s_personal .. '\n'
 			if t.incident.description and conf.show_chat_descriptions then
 				s = s .. "--> " .. t.incident.description .. '\n'
 			end
@@ -906,7 +926,6 @@ function SB:GROUP_INVITE_CONFIRMATION()
 	-- we need on the player who is requesting/being requested to join.
 	local invite_guid = GetNextPendingInviteConfirmation()
 	local _, name, guid = GetInviteConfirmationInfo(invite_guid)
-	self:Print(name, guid)
 	self:check_unit(nil, guid, "invite_confirmation")
 end
 
@@ -924,6 +943,7 @@ end
 function SB:PLAYER_ENTERING_WORLD()
 	-- Determine if the player is in an instance and appropriately
 	-- register or unregister scanning events.
+	-- self:Print(formatURL("https://www.curseforge.com/wow/addons/clicklinks/files"))
 	local conf = self:get_opts_db()
 	local b, code = IsInInstance()
 	local old_in_instance = self.in_instance
