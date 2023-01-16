@@ -24,6 +24,5 @@ To configure Scambuster, check your Interface addon options, or type one of the 
 
 ## Project wiki
 
-For full instructions, see the wiki at:
-- https://github.com/hypernormalisation/Scambuster/wiki
+For full instructions, see the [wiki](https://github.com/hypernormalisation/Scambuster/wiki).
 
