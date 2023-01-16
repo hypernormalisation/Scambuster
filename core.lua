@@ -78,10 +78,13 @@ SB.supported_case_data_fields = {
 	name = true,
 	guid = true,
 	category = true,
+	level = true,
 	description = true,
 	url = true,
 	players = true,
 	aliases = true,
+	class = true,
+	faction = true,
 }
 
 SB.scan_table = {
