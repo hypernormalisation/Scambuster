@@ -6,7 +6,7 @@ local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
 sb.debug = false
-sb.add_test_list = true
+sb.add_test_list = false
 local L = sb.L
 if sb.debug then SB:Print("Parsing core.lua...") end
 
