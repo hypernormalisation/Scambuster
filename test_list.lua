@@ -16,14 +16,14 @@ local case_data_1 = {
     },
     [1] = {
         name = "Arthas",
-        guid = "Player-GDDFDG-535321",
+        -- guid = "Player-GDDFDG-535321",
         category = "dungeon",
         description = "Ninja needed an item they could not use.",
         url = "some_other_url_again.com",
     },
     [2] = {
         name = "Swedger",
-        -- guid = "Player-4904-0079C620",
+        guid = "Player-4904-0079C620",
         --guid = "SOME-WRONG-GUID",
         category = "raid",
         description = "Some description.",
@@ -66,16 +66,15 @@ local case_data_2 = {
     [0] = {
         name = "Arthas",
         guid = "Player-GDDFDG-535321",
-        reason = "Trade Scam",
+        category = "trade",
         url = "some_other_url_yet_again.com",
     },
     [1] = {
         name = "Thrall",
         guid = "Player-GDSAKG-53295G",
-        reason = "Raid Scam",
+        category = "raid",
         url = "some_other_url.com",
         aliases = {"Durotan"},
-        previous_guids = {"Player-GJNGDS-2532FHG"},
     },
     [2] = {
         name = "Swedger",
