@@ -215,7 +215,6 @@ function SB:OnEnable()
 	self:build_database()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 
-
 	-- Welcome message if requested
 	if conf.welcome_message then
 		self:Print('Welcome to version 0.0.1.')
@@ -360,9 +359,9 @@ function SB:process_provider(l)
 			self:check_case_fields(case_data)
 			case_data.realm = realm
 			case_data.provider = l.provider
-			-- if case_data.name then
-			case_data.full_name = case_data.name .. "-" .. realm
-			-- end
+			if case_data.name then
+				case_data.full_name = case_data.name .. "-" .. realm
+			end
 			-- If "players" field given, we have multiple players on
 			-- this incident, so process them all.
 			if case_data.players then
@@ -858,7 +857,6 @@ end
 -- WoW API callbacks
 --=========================================================================================
 function SB:UPDATE_MOUSEOVER_UNIT()
-	-- if not self:get_opts_db().scans.mouseover.enabled then return end
 	if not self:is_unit_eligible("mouseover") then return end
 	self:check_unit("mouseover")
 end
@@ -867,13 +865,11 @@ function SB:CHAT_MSG_WHISPER(
 		event_name, msg, player_name_realm,
 		_, _, player_name, _, _, _, _, _, line_id, player_guid
 	)
-	-- if not self:get_opts_db().use_whisper_scan then return end
 	self:check_unit(nil, player_guid, "whisper")
 end
 
 function SB:PLAYER_TARGET_CHANGED()
 	-- self:Print("Scambuster doing target scan")
-	-- if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
 	self:check_unit("target")
 end
@@ -881,7 +877,6 @@ end
 function SB:GROUP_ROSTER_UPDATE()
 	local members = {}
 	if not IsInGroup(LE_PARTY_CATEGORY_HOME) then
-		-- print("not in a group")
 		return
 	end
 	-- Based on reading online, might need a short C_Timer in here if the unit info
@@ -941,7 +936,7 @@ function SB:PLAYER_ENTERING_WORLD()
 
 	if self.first_enter_world then
 		-- Only if in a home group, run the group scan callback.
-		if conf.use_group_scan and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+		if conf.scans.group.enabled and IsInGroup(LE_PARTY_CATEGORY_HOME) then
 			self:GROUP_ROSTER_UPDATE()
 		end
 		self.first_enter_world = false
