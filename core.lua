@@ -872,7 +872,7 @@ function SB:CHAT_MSG_WHISPER(
 end
 
 function SB:PLAYER_TARGET_CHANGED()
-	self:Print("Scambuster doing target scan")
+	-- self:Print("Scambuster doing target scan")
 	-- if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
 	self:check_unit("target")
