@@ -98,7 +98,9 @@ if sb.add_test_list then
     SB.RegisterCallback(
         SB, "SCAMBUSTER_LIST_CONSTRUCTION",
         function()
-            SB:Print("DEBUG: internal test list enabled and loaded.")
+            if sb.debug then
+                SB:Print("DEBUG: internal test list enabled and loaded.")
+            end
             SB:register_case_data(test_bl_1)
             -- SB:register_case_data(test_bl_2)
         end
