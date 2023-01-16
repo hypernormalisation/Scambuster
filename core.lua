@@ -5,8 +5,8 @@ local addon_name, sb = ...
 local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEvent-3.0")
 SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
-sb.debug = false
-sb.add_test_list = false
+sb.debug = true
+sb.add_test_list = true
 local L = sb.L
 if sb.debug then SB:Print("Parsing core.lua...") end
 
@@ -77,6 +77,16 @@ local incident_categories = {
 	harassment = "Harassment",
 }
 SB.incident_categories = incident_categories
+
+SB.supported_case_data_fields = {
+	name = true,
+	guid = true,
+	category = true,
+	description = true,
+	url = true,
+	players = true,
+	aliases = true,
+}
 
 SB.scan_table = {
 	mouseover = {
@@ -310,20 +320,33 @@ function SB:build_database()
 end
 
 function SB:protected_process_provider(l)
-	-- Wrap the parse of the unprocessed provider data in a pcall
+	-- Wraps the parse of the unprocessed provider data in a pcall
 	-- to catch errors.
-	local result = pcall(self.process_provider, self, l)
+	local result, return_value = pcall(self.process_provider, self, l)
 	if not result then
 		local name = l.name or l.provider or "UNIDENTIFIED LIST"
-		self:Print(
-			string.format(
-				"ERROR: the provider list %s could not be properly processed. "..
-				"Please contact the distributer of this list and disable the extension "..
-				"module until a fix is provided by the distributer, as this list may "..
-				"corrupt Scambuster's internal databases.",
-				name
+		self:Print(string.format("ERROR: the provider list %s could not be properly processed.", name))
+		print(
+			string.format(" Error was in case index [%.0f] in realm [%s]:",
+			self.provider_case_counter, tostring(self.current_provider_realm)
 			)
 		)
+		print(return_value)
+	end
+end
+
+function SB:check_case_fields(c)
+	-- Function to check for unrecognised case fields and alert the user.
+	-- Particularly useful for providers to catch typos and other errors.
+	for field, _ in pairs(c) do
+		if not self.supported_case_data_fields[field] then
+			self:Print(
+				string.format("WARNING: in case index [%.0f] in realm [%s]:",
+				self.provider_case_counter, tostring(self.current_provider_realm)
+				)
+			)
+			print(" Unrecognised input field " .. field)
+		end
 	end
 end
 
@@ -331,12 +354,16 @@ function SB:process_provider(l)
 	-- Takes the given case data for a single provider and adds
 	-- it to the database.
 	for realm, realm_dict in pairs(l.realm_data) do
-		for _, case_data in pairs(realm_dict) do
+		self.current_provider_realm = realm
+		self.provider_case_counter = 1
+		for case_index, case_data in pairs(realm_dict) do
+			self.provider_case_counter = case_index
+			self:check_case_fields(case_data)
 			case_data.realm = realm
 			case_data.provider = l.provider
-			if case_data.name then
-				case_data.full_name = case_data.name .. "-" .. realm	
-			end
+			-- if case_data.name then
+			case_data.full_name = case_data.name .. "-" .. realm
+			-- end
 			-- If "players" field given, we have multiple players on
 			-- this incident, so process them all.
 			if case_data.players then
@@ -373,7 +400,7 @@ function SB:process_player_by_guid(input)
 		t = self.user_table[input.guid]
 		if input.realm ~= t.realm then
 			self:Print(
-				"Warning: two lists have the same player matched by current guid, but "..
+				"WARNING: two lists have the same player matched by current guid, but "..
 				"listed on different servers, which is impossible. "..
 				string.format("Player name: %s", input.name .. "-" .. input.realm)
 			)
@@ -382,7 +409,6 @@ function SB:process_player_by_guid(input)
 		t.realm = input.realm
 		t.names = {}
 		t.previous_names = {}
-		t.previous_guids = {}
 		t.incidents = {}
 	end
 
@@ -396,15 +422,6 @@ function SB:process_player_by_guid(input)
 			if not t.aliases[alias] then
 				t.aliases[alias] = true
 				self.alias_table[alias] = input.name
-			end
-		end
-	end
-	-- Possible previous guids
-	if input.previous_guids then
-		for _, g in ipairs(input.previous_guids) do
-			if not t.previous_guids[g] then
-				t.previous_guids[g] = true
-				self.previous_guid_table[g] = {guid = input.guid}
 			end
 		end
 	end
@@ -422,7 +439,8 @@ function SB:process_incident(case_data)
 	c.category = case_data.category or false
 	c.level = case_data.level or 3
 	c.provider = case_data.provider
-	-- c.class = case_data.class or false
+	c.class = case_data.class or false
+	c.players = case_data.players or false
 	self.incident_table[self.incident_counter] = c
 
 	-- Now we need to reference the incident.
