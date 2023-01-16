@@ -108,21 +108,8 @@ local scan_opts_group = {
 			-- " This section allows you to specify the types of scans Scambuster will run, and when to run them."
 		},
 		-- 
-		use_whisper_scan = {
-			order = 2.1,
-			type = "toggle",
-			name = "Whispers",
-			desc = "If enabled, will check any players whispering you against the database.",
-			get = function()
-				return SB.db.profile.scans.whisper.enabled
-			end,
-			set = function(_, value)
-				SB.db.profile.scans.whisper.enabled = value
-				SB:set_scan_events()
-			end,
-		},
 		use_group_scan = {
-			order = 2.2,
+			order = 2.1,
 			type = "toggle",
 			name = "Party/Raid",
 			desc = "If enabled, will check any players in your party or raid agaist the database.",
@@ -135,7 +122,7 @@ local scan_opts_group = {
 			end
 		},
 		use_group_request_scan = {
-			order = 2.3,
+			order = 2.2,
 			type = "toggle",
 			name = "Invite Confirmations",
 			desc = "If enabled, will check any players suggested to join your party or raid by another "..
@@ -147,6 +134,19 @@ local scan_opts_group = {
 				SB.db.profile.scans.invite_confirmation.enabled = value
 				SB:set_scan_events()
 			end
+		},
+		use_whisper_scan = {
+			order = 2.3,
+			type = "toggle",
+			name = "Whispers",
+			desc = "If enabled, will check any players whispering you against the database.",
+			get = function()
+				return SB.db.profile.scans.whisper.enabled
+			end,
+			set = function(_, value)
+				SB.db.profile.scans.whisper.enabled = value
+				SB:set_scan_events()
+			end,
 		},
 		use_trade_scan = {
 			order = 2.4,
@@ -211,6 +211,9 @@ local scan_opts_group = {
 				SB.db.profile.scans.whisper.disable_in_instance = value
 				SB:set_scan_events()
 			end,
+			disabled = function()
+				return SB.db.profile.scans.whisper.enabled == false
+			end
 		},
 		disable_trade_in_instance = {
 			order = 3.2,
@@ -224,6 +227,9 @@ local scan_opts_group = {
 				SB.db.profile.scans.trade.disable_in_instance = value
 				SB:set_scan_events()
 			end,
+			disabled = function()
+				return SB.db.profile.scans.trade.enabled == false
+			end
 		},
 		disable_target_in_instance = {
 			order = 3.3,
@@ -237,6 +243,9 @@ local scan_opts_group = {
 				SB.db.profile.scans.target.disable_in_instance = value
 				SB:set_scan_events()
 			end,
+			disabled = function()
+				return SB.db.profile.scans.target.enabled == false
+			end
 		},
 		disable_mmouseover_in_instance = {
 			order = 3.4,
@@ -250,6 +259,9 @@ local scan_opts_group = {
 				SB.db.profile.scans.mouseover.disable_in_instance = value
 				SB:set_scan_events()
 			end,
+			disabled = function()
+				return SB.db.profile.scans.mouseover.enabled == false
+			end
 		},
 	}
 }
@@ -400,6 +412,8 @@ local reports_group = {
 			name = "Supplement names",
 			desc = "If enabled, when a unit has both guid and name-only matches, Scambuster will present all matches. If not, just "..
 			"GUID matches will be displayed in alerts.",
+			get = "opts_getter",
+			set = "opts_setter",
 		}
 	},
 }
