@@ -23,15 +23,11 @@ local IsInRaid = IsInRaid
 local PlaySoundFile = PlaySoundFile
 local GetNumGroupMembers = GetNumGroupMembers
 
-local UnitInBattleground = UnitInBattleground
 local UnitFactionGroup = UnitFactionGroup
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsUnit = UnitIsUnit
 local UnitGUID = UnitGUID
-local UnitName = UnitName
 local UnitLevel = UnitLevel
-local UnitRace = UnitRace
-local UnitClass = UnitClass
 local GetGuildInfo = GetGuildInfo
 local SendChatMessage = SendChatMessage
 
@@ -525,7 +521,7 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	-- By now we know the person is listed. So populate the query table
 	-- and update the dynamic info for the unit.
 	unit_token = unit_token or false
-	scan_context = unit_token or scan_context
+	scan_context = scan_context or unit_token
 	self.query = {}  -- internal container to avoid passing args everywhere.
 	self.query.unit_token = unit_token
 	self.query.scan_context = scan_context
@@ -859,7 +855,7 @@ end
 -- WoW API callbacks
 --=========================================================================================
 function SB:UPDATE_MOUSEOVER_UNIT()
-	if not self:get_opts_db().use_mouseover_scan then return end
+	-- if not self:get_opts_db().scans.mouseover.enabled then return end
 	if not self:is_unit_eligible("mouseover") then return end
 	self:check_unit("mouseover")
 end
@@ -868,13 +864,13 @@ function SB:CHAT_MSG_WHISPER(
 		event_name, msg, player_name_realm,
 		_, _, player_name, _, _, _, _, _, line_id, player_guid
 	)
-	if not self:get_opts_db().use_whisper_scan then return end
+	-- if not self:get_opts_db().use_whisper_scan then return end
 	self:check_unit(nil, player_guid, "whisper")
 end
 
 function SB:PLAYER_TARGET_CHANGED()
-	-- self:Print("target change event")
-	if not self:get_opts_db().use_target_scan then return end
+	self:Print("Scambuster doing target scan")
+	-- if not self:get_opts_db().use_target_scan then return end
 	if not self:is_unit_eligible("target") then return end
 	self:check_unit("target")
 end
