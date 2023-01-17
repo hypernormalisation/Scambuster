@@ -12,12 +12,16 @@ local L = sb.L
 SB.defaults = {
 	global = {
 		n_alerts = 0,
+		n_detections = 0,
+		n_scans = 0,
 		udi = {},
 		provider_settings = {},
 		false_positive_table = {},
 	},
 	realm = {
 		n_alerts = 0,
+		n_detections = 0,
+		n_scans = 0
 	},
 
 	-- The profile table is where the user config options are stored.

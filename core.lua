@@ -199,12 +199,10 @@ function SB:OnInitialize()
 	self:RegisterChatCommand("dump_users", "dump_users")
 	self:RegisterChatCommand("dump_incidents", "dump_incidents")
 	self:RegisterChatCommand("dump_name_lookup", "dump_name_lookup")
-	-- self:RegisterChatCommand("dump_guid_lookup", "dump_guid_lookup")
-
 	self:RegisterChatCommand("dump_udi", "dump_udi")
 	self:RegisterChatCommand("clear_udi", "clear_udi")
 	self:RegisterChatCommand("clear_fps", "clear_fps")
-	self:RegisterChatCommand("test1", "test1")
+	self:RegisterChatCommand("show_stats", "show_stats")
 
 	-- Containers for the alerts system.
 	self.alert_counter = 0  -- just for index handling on temp alerts list
@@ -506,6 +504,8 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	-- If a unit token does not exist, as for whispers or invite
 	-- confirmations, it should be passed manually.
 	-- First check for a guid match.
+	self.db.global.n_scans = self.db.global.n_scans + 1
+	self.db.realm.n_scans = self.db.realm.n_scans + 1
 	local conf = self:get_opts_db()
 	unit_guid = unit_guid or UnitGUID(unit_token)
 	local guid_match = false
@@ -532,6 +532,8 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	end
 	-- By now we know the person is listed. So populate the query table
 	-- and update the dynamic info for the unit.
+	self.db.global.n_detections = self.db.global.n_detections + 1
+	self.db.realm.n_detections = self.db.realm.n_detections + 1
 	unit_token = unit_token or false
 	scan_context = scan_context or unit_token
 	self.query = {}  -- internal container to avoid passing args everywhere.
@@ -892,8 +894,8 @@ function SB:raise_alert()
 	end
 
 	-- Handle stats counters
-	-- self.db.global.n_alerts = self.db.global.n_alerts + 1
-	-- self.db.realm.n_alerts = self.db.realm.n_alerts + 1
+	self.db.global.n_alerts = self.db.global.n_alerts + 1
+	self.db.realm.n_alerts = self.db.realm.n_alerts + 1
 end
 
 --=========================================================================================
@@ -1057,9 +1059,14 @@ function SB:slashcommand_soundcheck()
 	PlaySoundFile(sound_file)
 end
 
-function SB:test1()
+function SB:show_stats()
+	self:Print("N scans global = " .. tostring(self.db.global.n_scans))
+	self:Print("N detections global = " .. tostring(self.db.global.n_detections))
 	self:Print("N alerts global = " .. tostring(self.db.global.n_alerts))
-	self:Print("N alerts realm  = " .. tostring(self.db.realm.n_alerts))
+
+	self:Print("N scans realm = " .. tostring(self.db.realm.n_scans))
+	self:Print("N detections realm = " .. tostring(self.db.realm.n_detections))
+	self:Print("N alerts realm = " .. tostring(self.db.realm.n_alerts))
 end
 
 --=========================================================================================
