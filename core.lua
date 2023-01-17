@@ -114,6 +114,7 @@ SB.scan_table = {
 	group = {
 		event = "GROUP_ROSTER_UPDATE",
 		pretty = "Group",
+		can_broadcast = true,
 	},
 	invite_confirmation = {
 		event = "GROUP_INVITE_CONFIRMATION",
@@ -890,15 +891,18 @@ function SB:raise_alert()
 		self:play_alert_sound()
 	end
 
-	-- Only do printout if the 
-	if conf.use_group_chat_alert and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+	-- If the scan is broadcastable, figure out if it should be broadcast
+	-- according to group status and config.
+	if self.scan_table[self.query.scan_context].can_broadcast and IsInGroup(LE_PARTY_CATEGORY_HOME)
+	and conf.use_group_chat_alert then
 		local channel = "PARTY"
 		if IsInRaid() then
 			channel = "RAID"
 		end
 		self:send_channel_alert(channel)
+	-- Else print a system message as required.
 	else
-		if conf.use_chat_alert then
+		if conf.use_system_alert then
 			self:print_chat_alert()
 		end
 	end
