@@ -116,6 +116,10 @@ SB.scan_table = {
 	},
 	invite_confirmation = {
 		event = "GROUP_INVITE_CONFIRMATION",
+		events = {
+			[0] = "GROUP_INVITE_CONFIRMATION",
+			[1] = "PARTY_INVITE_REQUEST",
+		},
 		pretty = "Invite Confirmation",
 	},
 }
@@ -948,6 +952,13 @@ function SB:GROUP_INVITE_CONFIRMATION()
 	self:check_unit(nil, guid, "invite_confirmation")
 end
 
+function SB:PARTY_INVITE_REQUEST(
+	event_name, name, isTank, isHealer, isDamage, isNativeRealm, allowMultipleRoles, inviterGUID, questSessionActive
+	)
+	self:Print(event_name, inviterGUID)
+	self:check_unit(nil, inviterGUID, "invite_confirmation")
+end
+
 function SB:TRADE_SHOW()
 	-- This event is called when the trade window is opened.
 	-- We can use the special "NPC" unit to get info we need on the
@@ -989,7 +1000,13 @@ function SB:set_scan_events()
 	local conf = self:get_opts_db()
 	for scan, t in pairs(self.scan_table) do
 		if conf.scans[scan].enabled then
-			self:RegisterEvent(t.event)
+			if t.events then
+				for _, event_name in pairs(t.events) do
+					self:RegisterEvent(event_name)
+				end
+			else
+				self:RegisterEvent(t.event)
+			end
 		end
 	end
 	-- In instance
