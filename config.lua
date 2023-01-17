@@ -32,7 +32,7 @@ SB.defaults = {
 		-- alert settings
 		alert_lockout_seconds = 900,
 
-		use_chat_alert = true,
+		use_system_alert = true,
 		use_group_chat_alert = true,
 		
 		print_descriptions_in_alerts = true,
@@ -469,11 +469,11 @@ local alerts_opts_group = {
 			type = "description",
 			name = "Scambuster can alert you when you encounter a scammer in a number of ways."
 		},
-		use_chat_alert = {
+		use_system_alert = {
 			order = 2.1,
 			type = "toggle",
 			name = "System Message",
-			desc = "If enabled, Scambuster will print a summary of the scammer's information to the chat panel when an alert is raised.",
+			desc = "If enabled, Scambuster will print a summary of the scammer's information as a system message when an alert is raised.",
 			get = "opts_getter",
 			set = "opts_setter"
 		},
@@ -482,7 +482,7 @@ local alerts_opts_group = {
 			type = "toggle",
 			name = "Group/Raid chat",
 			desc = "If enabled and in an instance group, Scambuster will broadcast a summary of the scammer's information to the"..
-			" group or raid channel, depending on the group type. This will happen instead of the system message personal alert.",
+			" group or raid channel. Will only happen for Group scans.",
 			get = "opts_getter",
 			set = "opts_setter",
 		},
