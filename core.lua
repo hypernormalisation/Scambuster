@@ -967,7 +967,6 @@ end
 function SB:PARTY_INVITE_REQUEST(
 	event_name, name, isTank, isHealer, isDamage, isNativeRealm, allowMultipleRoles, inviterGUID, questSessionActive
 	)
-	self:Print(event_name, inviterGUID)
 	self:check_unit(nil, inviterGUID, "invite_confirmation")
 end
 
