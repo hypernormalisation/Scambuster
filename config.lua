@@ -393,7 +393,7 @@ local reports_group = {
 		d4 = {
 			order = 4.01,
 			type = "description",
-			name = "Scambusters lists support both player names and Globally Unique Identifiers (GUIDs). Player names can be changed,"..
+			name = "Scambuster's lists support both player names and Globally Unique Identifiers (GUIDs). Player names can be changed,"..
 			" resulting in false positives if a new player takes a listed name after a scammer changes name, "..
 			"while most easy ways to rename a toon maintain the same GUID. As such, Scambuster prefers GUIDs in its matching, but will fall "..
 			"back on names. This can be configured below.",
