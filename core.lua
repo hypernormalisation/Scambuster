@@ -744,13 +744,13 @@ function SB:construct_printout_headline()
 	q.player_hl = player_hl
 	local s1 = "Encountered "
 	if u.level and u.guild then
-		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, name, u.guild)
+		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, player_hl, u.guild)
 	elseif u.level then
 		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, player_hl)
 	elseif u.guild then
-		s1 = s1 .. string.format("%s [%s] from [%s]", u.class_english_locale, name, u.guild)
+		s1 = s1 .. string.format("%s [%s] from [%s]", u.class_english_locale, player_hl, u.guild)
 	else
-		s1 = s1 .. string.format("%s [%s]", u.class_english_locale, name)
+		s1 = s1 .. string.format("%s [%s]", u.class_english_locale, player_hl)
 	end
 	local pretty = self.scan_table[q.scan_context].pretty
 	s1 = s1 .. string.format(", detected via %s scan.", pretty)
