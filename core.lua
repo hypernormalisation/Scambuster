@@ -6,11 +6,12 @@ local SB = LibStub("AceAddon-3.0"):NewAddon(addon_name, "AceConsole-3.0", "AceEv
 SB.callbacks = SB.callbacks or LibStub("CallbackHandler-1.0"):New(SB)
 local LSM = LibStub("LibSharedMedia-3.0")
 sb.debug = false
-sb.add_test_list = false
+sb.add_test_list = true
 local L = sb.L
 if sb.debug then SB:Print("Parsing core.lua...") end
 
 -- Load some relevant wow API and lua globals into the local namespace.
+local CreateTextureMarkup = CreateTextureMarkup
 local GetInviteConfirmationInfo = GetInviteConfirmationInfo
 local GetNextPendingInviteConfirmation = GetNextPendingInviteConfirmation
 local GetUnitName = GetUnitName
@@ -733,46 +734,43 @@ function SB:construct_printout_headline()
 	if u == nil then
 		u = udi[q.full_name]
 	end
-	local s1 = "Encountered a listed player! "
+	local player_hl = string.format("|Hplayer:%s|h[%s]|h", q.full_name, name)
+	q.player_hl = player_hl
+	local s1 = "Encountered "
 	if u.level and u.guild then
 		s1 = s1 .. string.format("lvl %0.f %s %s from [%s]", u.level, u.class_english_locale, name, u.guild)
 	elseif u.level then
-		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, name)
+		s1 = s1 .. string.format("lvl %0.f %s %s", u.level, u.class_english_locale, player_hl)
 	elseif u.guild then
-		s1 = s1 .. string.format("%s %s from [%s]", u.race, u.class_english_locale, name)
+		s1 = s1 .. string.format("%s [%s] from [%s]", u.class_english_locale, name, u.guild)
 	else
-		s1 = s1 .. string.format("%s %s", u.class_english_locale, name)
+		s1 = s1 .. string.format("%s [%s]", u.class_english_locale, name)
 	end
 	local pretty = self.scan_table[q.scan_context].pretty
-	s1 = s1 .. string.format(", detected via %s scan.\nListed by:", pretty)
+	s1 = s1 .. string.format(", detected via %s scan.", pretty)
 	q.headline = s1
 end
 
 function SB:construct_chat_strings()
 	-- Constructs the necessary strings for channel alerts.
 	local q = self.query
-
+	local conf = self:get_opts_db()
 	-- The headline
-	q.chat_headline = string.format("Warning! %s is a known scammer. Listed by...", q.short_name)
+	q.chat_headline = string.format("Warning! %s is a known scammer.", q.short_name)
 	-- The guid-matched incidents
 	q.chat_incidents = {}
+	-- local coins = "|TInterface\\Icons\\INV_Misc_Coin_01:16:16:0:0:64:64:4:60:4:60|t"
+	local note_icon = CreateTextureMarkup("Interface/Icons/Inv_misc_note_02",  64, 64, 16, 16, 0, 1, 0, 1)
+	local diamond = "{rt3}"
 	if q.guid_match_incidents then
 		for _, incident in pairs(q.guid_match_incidents) do
 			if not q.chat_incidents[incident.provider] then
 				q.chat_incidents[incident.provider] = {}
 			end
-			local s = string.format("-> %s:", incident.provider)
-			if incident.category then
-				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
-			end
-			local s_personal = s
-			s = s .. " " .. incident.url
-			s_personal = s_personal .. " " .. formatURL(incident.url)
 			q.chat_incidents[incident.provider][incident.case_id] = {
-				s = s,
-				s_personal = s_personal,
 				guid = true,
-				incident=incident
+				incident=incident,
+				chat_lines = {},
 			}
 		end
 	end
@@ -782,23 +780,46 @@ function SB:construct_chat_strings()
 			if not q.chat_incidents[incident.provider] then
 				q.chat_incidents[incident.provider] = {}
 			end
-			local s = string.format("-> %s:", incident.provider)
-			if incident.category then
-				s = string.format("-> %s for %s:", incident.provider, incident_categories[incident.category])
-			end
-			local s_personal = s
-			s = s .. " " .. incident.url
-			s = s .. " (name-only)"
-			s_personal = s_personal .. " " .. formatURL(incident.url)
-			s_personal = s_personal .. " (name-only)"
 			q.chat_incidents[incident.provider][incident.case_id] = {
-				s = s,
-				s_personal = s_personal,
 				guid = false,
-				incident=incident
+				incident=incident,
+				chat_lines = {},
 			}
 		end
 	end
+
+	-- Now build up personal printout messages. These can use all the wow formatting/escape codes.
+	-- Also build up chat printouts that can use the target icons but nothing else.
+	for _, t1 in pairs(q.chat_incidents) do
+		-- print(tab_dump(t1))
+		for _, t in pairs(t1) do
+			local line_counter = 0
+			local sp = note_icon .. " " .. t.incident.provider
+			local sc = diamond .. " " .. t.incident.provider
+			if t.incident.category then
+				sp = sp .. string.format(" for %s:\n", incident_categories[t.incident.category])
+				sc = sc .. string.format(" for %s:\n", incident_categories[t.incident.category])
+			else
+				sp = sp .. ":\n"
+				sc = sc .. ":\n"
+			end
+			t.chat_lines[line_counter] = sc
+			line_counter = line_counter + 1
+			if t.incident.description and conf.print_descriptions_in_alerts then
+				sp = sp .. "---> " .. t.incident.description .. '\n'
+				sc = "---> " .. t.incident.description .. '\n'
+				t.chat_lines[line_counter] = sc
+				line_counter = line_counter + 1
+			end
+
+			local sc2 = "---> " .. t.incident.url
+			local sp = sp .. "---> " .. formatURL(t.incident.url) .. '\n'
+			t.chat_lines[line_counter] = sc2
+			line_counter = line_counter + 1
+			t.personal_string = sp
+		end
+	end
+
 end
 
 --=========================================================================================
@@ -814,15 +835,11 @@ end
 
 function SB:print_chat_alert()
 	-- Prints an alert to the chatbox, just to the player.
-	local conf = self:get_opts_db()
 	local q = self.query
 	local s = q.headline .. '\n'
 	for _, provider_table in pairs(q.chat_incidents) do
 		for _, t in pairs(provider_table) do
-			s = s .. t.s_personal .. '\n'
-			if t.incident.description and conf.show_chat_descriptions then
-				s = s .. "--> " .. t.incident.description .. '\n'
-			end
+			s = s .. t.personal_string
 		end
 	end
 	self:Print(s)
@@ -835,9 +852,10 @@ function SB:send_channel_alert(channel)
 	SendChatMessage(q.chat_headline, channel)
 	for _, provider_table in pairs(q.chat_incidents) do
 		for _, t in pairs(provider_table) do
-			SendChatMessage(t.s, channel)
-			if t.incident.description and conf.show_chat_descriptions then
-				SendChatMessage("--> " .. t.incident.description, channel)
+			local i = 0
+			while t.chat_lines[i] do
+				SendChatMessage(t.chat_lines[i], channel)
+				i = i + 1
 			end
 		end
 	end
@@ -868,6 +886,7 @@ function SB:raise_alert()
 			self:print_chat_alert()
 		end
 	end
+
 	-- Handle stats counters
 	-- self.db.global.n_alerts = self.db.global.n_alerts + 1
 	-- self.db.realm.n_alerts = self.db.realm.n_alerts + 1
@@ -943,7 +962,6 @@ end
 function SB:PLAYER_ENTERING_WORLD()
 	-- Determine if the player is in an instance and appropriately
 	-- register or unregister scanning events.
-	-- self:Print(formatURL("https://www.curseforge.com/wow/addons/clicklinks/files"))
 	local conf = self:get_opts_db()
 	local b, code = IsInInstance()
 	local old_in_instance = self.in_instance

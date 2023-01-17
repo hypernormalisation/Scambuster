@@ -30,8 +30,8 @@ SB.defaults = {
 
 		use_chat_alert = true,
 		use_group_chat_alert = true,
-		show_chat_descriptions = true,
-
+		
+		print_descriptions_in_alerts = true,
 		use_gui_alert = true, -- placeholder
 
 		use_alert_sound = true,
@@ -409,11 +409,14 @@ local reports_group = {
 		match_all_incidents = {
 			order = 4.2,
 			type = "toggle",
-			name = "Supplement names",
-			desc = "If enabled, when a unit has both guid and name-only matches, Scambuster will present all matches. If not, just "..
-			"GUID matches will be displayed in alerts.",
+			name = "Add Name-only Matches",
+			desc = "If Require GUID Match is enabled, enabling this option will also print name-only case matches corresponding "..
+			"to the same name as the GUID-matched case.",
 			get = "opts_getter",
 			set = "opts_setter",
+			disabled = function()
+				return SB.db.profile.require_guid_match == false
+			end
 		}
 	},
 }
@@ -432,7 +435,7 @@ local alerts_opts_group = {
 			type = "header",
 			name = "Alert Lockout",
 		},
-		h2 = {
+		d1 = {
 			order = 1.01,
 			type = "description",
 			name = "To avoid spam, Scambuster will only generate warnings for a given scammer once per a lockout period, configurable below.",
@@ -452,6 +455,11 @@ local alerts_opts_group = {
 			set = "opts_setter",
 		},
 		--
+		h2 = {
+			order = 2.00,
+			type = "header",
+			name = "Chat Alerts",
+		},
 		alerts_desc = {
 			order = 2.01,
 			type = "description",
@@ -460,7 +468,7 @@ local alerts_opts_group = {
 		use_chat_alert = {
 			order = 2.1,
 			type = "toggle",
-			name = "Chat panel",
+			name = "System Message",
 			desc = "If enabled, Scambuster will print a summary of the scammer's information to the chat panel when an alert is raised.",
 			get = "opts_getter",
 			set = "opts_setter"
@@ -470,17 +478,30 @@ local alerts_opts_group = {
 			type = "toggle",
 			name = "Group/Raid chat",
 			desc = "If enabled and in an instance group, Scambuster will broadcast a summary of the scammer's information to the"..
-			" group or raid channel, depending on the group type. This will happen instead of the chat panel personal alert.",
+			" group or raid channel, depending on the group type. This will happen instead of the system message personal alert.",
 			get = "opts_getter",
 			set = "opts_setter",
 		},
 		lb1 = {
 			name = "",
-			order = 3.0,
+			order = 2.5,
 			type = "description",
 		},
-		use_alert_sound = {
+		print_descriptions_in_alerts = {
+			order = 2.6,
+			type = "toggle",
+			name = "Print Descriptions",
+			desc = "If enabled, the description of the scam incident will also be printed in text alerts, if one is given by the provider.",
+			get = "opts_getter",
+			set = "opts_setter",
+		},
+		h3 = {
+			name = "Sound Alerts",
 			order = 3.1,
+			type = "header",
+		},
+		use_alert_sound = {
+			order = 3.11,
 			type = "toggle",
 			name = "Audio Alert",
 			desc = "If enabled, Scambuster will play an audio cue when an alert is raised.",
