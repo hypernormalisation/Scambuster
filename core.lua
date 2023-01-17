@@ -803,11 +803,21 @@ function SB:construct_chat_strings()
 			local sp = note_icon .. " " .. t.incident.provider
 			local sc = diamond .. " " .. t.incident.provider
 			if t.incident.category then
-				sp = sp .. string.format(" for %s:\n", incident_categories[t.incident.category])
-				sc = sc .. string.format(" for %s:\n", incident_categories[t.incident.category])
+				if t.guid then
+					sp = sp .. string.format(" for %s:\n", incident_categories[t.incident.category])
+					sc = sc .. string.format(" for %s:\n", incident_categories[t.incident.category])
+				else
+					sp = sp .. string.format(" for %s (name match only):\n", incident_categories[t.incident.category])
+					sc = sc .. string.format(" for %s (name match only):\n", incident_categories[t.incident.category])
+				end
 			else
-				sp = sp .. ":\n"
-				sc = sc .. ":\n"
+				if t.guid then
+					sp = sp .. ":\n"
+					sc = sc .. ":\n"
+				else
+					sp = sp .. " (name match only):\n"
+					sc = sc .. " (name match only):\n"
+				end
 			end
 			t.chat_lines[line_counter] = sc
 			line_counter = line_counter + 1
