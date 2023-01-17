@@ -8,6 +8,7 @@ local LSM = LibStub("LibSharedMedia-3.0")
 sb.debug = false
 sb.add_test_list = false
 local L = sb.L
+local version = "@project-version@"
 if sb.debug then SB:Print("Parsing core.lua...") end
 
 -- Load some relevant wow API and lua globals into the local namespace.
@@ -207,7 +208,6 @@ function SB:OnInitialize()
 	-- Containers for the alerts system.
 	self.alert_counter = 0  -- just for index handling on temp alerts list
 	self.pending_alerts = {}
-
 	self.first_enter_world = true
 
 end
@@ -225,7 +225,7 @@ function SB:OnEnable()
 
 	-- Welcome message if requested
 	if conf.welcome_message then
-		self:Print('Welcome to version 0.0.1.')
+		self:Print('Welcome to version ' .. tostring(version))
 	end
 
 end
