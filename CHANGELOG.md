@@ -1,3 +1,16 @@
+## [0.1.4] - 2023-01-19
+
+## Changed
+- Interface number updated for Ulduar patch 3.4.1, to reflect the addon is up-to-date and functional in this game version.
+
+## Fixed
+- Applied a fix for an issue where the realm name occasionally is returned by the WoW API as nil, which was causing that particular scan attempt to fail.
+
+## [0.1.3] - 2023-01-17
+
+## Changed
+- Now the only scans that can result in a group broadcast are groups scans. All other scans now go to system messages when in a group to prevent spamming groups.
+
 ## [0.1.2] - 2023-01-17
 
 ### Fixed
