@@ -515,8 +515,7 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	end
 	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
 	-- self:Print(realm, type(realm))
-	if realm == "" then
-		-- self:Print(self.realm_name)
+	if realm == "" or realm == nil then
 		realm = self.realm_name
 	end
 	local full_name = name .. "-" .. realm
