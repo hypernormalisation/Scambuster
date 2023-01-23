@@ -711,7 +711,7 @@ function SB:update_UDI()
 				p.name_mismatches[provider] = name
 				local s = string.format(
 					"Warning: the list provider %s has an outdated name listed for the "..
-					"user %s. They are listed as % in the provider list, please contact "..
+					"user %s. They are listed as %s in the provider list, please contact "..
 					"the list provider to remedy this.",
 					provider, p.short_name, name
 				)
