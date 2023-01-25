@@ -515,6 +515,10 @@ function SB:check_unit(unit_token, unit_guid, scan_context)
 	end
 	local name, realm = select(6, GetPlayerInfoByGUID(unit_guid))
 	-- self:Print(realm, type(realm))
+
+	if name == nil then return end  -- Temp fix to catch cases when name is returned nil by 
+									-- the asynchronous GetPlayerInfoByGUID func. Needs a rework
+									-- to the overall structure to support delayed retries.
 	if realm == "" or realm == nil then
 		realm = self.realm_name
 	end
@@ -704,14 +708,15 @@ function SB:update_UDI()
 	-- Always update last seen
 	p.last_seen = GetTime()
 
-	-- At this point can also check the names 
+	-- At this point can also check the provider names against the actual name of
+	-- any GUID-matched player in-game.
 	if q.guid_match then
 		for provider, name in pairs(self.user_table[index].names) do
-			if p.short_name ~= name and p.name_mismatches[name] == nil then
+			if p.short_name ~= name and p.name_mismatches[provider] ~= name then
 				p.name_mismatches[provider] = name
 				local s = string.format(
 					"Warning: the list provider %s has an outdated name listed for the "..
-					"user %s. They are listed as %s in the provider list, please contact "..
+					"player %s. They are listed as %s in the provider list, please contact "..
 					"the list provider to remedy this.",
 					provider, p.short_name, name
 				)

@@ -1,3 +1,9 @@
+## [0.1.5] - 2023-01-25
+
+### Fixed
+- Prevented an error where GetPlayerInfoByGUID endpoint was returning nil for name or realm. Needs a proper fix at some point to schedule a retry, but this will prevent lua errors arising.
+- Fixed an error that was spamming provider name mismatches each time a name-mismatched player was encountered, instead of just once per scammer rename.
+
 ## [0.1.4] - 2023-01-19
 
 ### Changed
