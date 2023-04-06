@@ -580,21 +580,22 @@ function SB:is_off_alert_lockout()
 	local udi = self:get_UDI()
 	local q = self.query
 	local index = q.guid
+	local timeNow=GetServerTime()
 	if not q.guid_match then
 		index = q.full_name
 	end
 	if not udi[index].last_alerted then
-		udi[index].last_alerted = GetServerTime()
+		udi[index].last_alerted = timeNow
 		return true
 	end
 
 	local delta = self:get_opts_db().alert_lockout_seconds
-	if GetServerTime() < delta + udi[index].last_alerted then
-		local time_until = delta + udi[index].last_alerted - GetServerTime()
+	if timeNow < delta + udi[index].last_alerted then
+		local time_until = delta + udi[index].last_alerted - timeNow
 		-- self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
-	udi[index].last_alerted = GetServerTime()
+	udi[index].last_alerted = timeNow
 	return true
 end
 
