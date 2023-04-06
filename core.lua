@@ -16,7 +16,7 @@ local CreateTextureMarkup = CreateTextureMarkup
 local GetInviteConfirmationInfo = GetInviteConfirmationInfo
 local GetNextPendingInviteConfirmation = GetNextPendingInviteConfirmation
 local GetUnitName = GetUnitName
-local GetTime = GetTime
+local GetServerTime = GetServerTime
 local GetPlayerInfoByGUID = GetPlayerInfoByGUID
 local GetRealmName = GetRealmName
 local IsInInstance = IsInInstance
@@ -584,17 +584,17 @@ function SB:is_off_alert_lockout()
 		index = q.full_name
 	end
 	if not udi[index].last_alerted then
-		udi[index].last_alerted = GetTime()
+		udi[index].last_alerted = GetServerTime()
 		return true
 	end
 
 	local delta = self:get_opts_db().alert_lockout_seconds
-	if GetTime() < delta + udi[index].last_alerted then
-		local time_until = delta + udi[index].last_alerted - GetTime()
+	if GetServerTime() < delta + udi[index].last_alerted then
+		local time_until = delta + udi[index].last_alerted - GetServerTime()
 		-- self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
-	udi[index].last_alerted = GetTime()
+	udi[index].last_alerted = GetServerTime()
 	return true
 end
 
