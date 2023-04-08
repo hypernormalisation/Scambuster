@@ -41,7 +41,7 @@ local case_data_1 = {
                 name = "Swedger",
             },
             [1] = {
-                name = "Accomplice",
+                name = "Kasuka",
                 class = "DRUID",
             }
         },
