@@ -580,7 +580,7 @@ function SB:is_off_alert_lockout()
 	local udi = self:get_UDI()
 	local q = self.query
 	local index = q.guid
-	local timeNow=GetServerTime()
+	local timeNow = GetServerTime()
 	if not q.guid_match then
 		index = q.full_name
 	end
@@ -707,7 +707,7 @@ function SB:update_UDI()
 	local p = udi[index]
 
 	-- Always update last seen
-	p.last_seen = GetTime()
+	p.last_seen = GetServerTime()
 
 	-- At this point can also check the provider names against the actual name of
 	-- any GUID-matched player in-game.
@@ -742,6 +742,9 @@ function SB:construct_printout_headline()
 	local q = self.query
 	local udi = self:get_UDI()
 	local u = udi[q.guid]
+	if not u then
+		u = udi[q.full_name]
+	end
 	local name = self:colorise_name(u.short_name, u.english_class)
 	if u == nil then
 		u = udi[q.full_name]
