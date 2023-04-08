@@ -16,7 +16,7 @@ local CreateTextureMarkup = CreateTextureMarkup
 local GetInviteConfirmationInfo = GetInviteConfirmationInfo
 local GetNextPendingInviteConfirmation = GetNextPendingInviteConfirmation
 local GetUnitName = GetUnitName
-local GetTime = GetTime
+local GetServerTime = GetServerTime
 local GetPlayerInfoByGUID = GetPlayerInfoByGUID
 local GetRealmName = GetRealmName
 local IsInInstance = IsInInstance
@@ -580,21 +580,22 @@ function SB:is_off_alert_lockout()
 	local udi = self:get_UDI()
 	local q = self.query
 	local index = q.guid
+	local timeNow = GetServerTime()
 	if not q.guid_match then
 		index = q.full_name
 	end
 	if not udi[index].last_alerted then
-		udi[index].last_alerted = GetTime()
+		udi[index].last_alerted = timeNow
 		return true
 	end
 
 	local delta = self:get_opts_db().alert_lockout_seconds
-	if GetTime() < delta + udi[index].last_alerted then
-		local time_until = delta + udi[index].last_alerted - GetTime()
+	if timeNow < delta + udi[index].last_alerted then
+		local time_until = delta + udi[index].last_alerted - timeNow
 		-- self:Print(string.format("locked out for another %f seconds", time_until))
 		return false
 	end
-	udi[index].last_alerted = GetTime()
+	udi[index].last_alerted = timeNow
 	return true
 end
 
@@ -706,7 +707,7 @@ function SB:update_UDI()
 	local p = udi[index]
 
 	-- Always update last seen
-	p.last_seen = GetTime()
+	p.last_seen = GetServerTime()
 
 	-- At this point can also check the provider names against the actual name of
 	-- any GUID-matched player in-game.
@@ -741,6 +742,9 @@ function SB:construct_printout_headline()
 	local q = self.query
 	local udi = self:get_UDI()
 	local u = udi[q.guid]
+	if not u then
+		u = udi[q.full_name]
+	end
 	local name = self:colorise_name(u.short_name, u.english_class)
 	if u == nil then
 		u = udi[q.full_name]

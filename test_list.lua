@@ -41,12 +41,18 @@ local case_data_1 = {
                 name = "Swedger",
             },
             [1] = {
-                name = "Accomplice",
+                name = "Kasuka",
                 class = "DRUID",
             }
         },
         category = "trade",
         url = "https://wowpedia.fandom.com/wiki/Void",
+    },
+    [5] = {
+        guid = "Player-4904-007D2BDC",
+        category = "gdkp",
+        description = "Some test description for incident with the player.",
+        url = "https://wowpedia.fandom.com/wiki/Outland",
     },
 }
 
