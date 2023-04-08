@@ -1,3 +1,9 @@
+## [0.1.6] - 2023-04-08
+
+### Fixed
+- The last_seen and last_alerted timestamps were incorrectly using the time the computer has been active. They now use the epoch time, which should fix an issue where alerts were not generated when they should have been.
+- Fixed and issue with name-only matched alert generations that was causing lua errors where a GUID was not present in the case data.
+
 ## [0.1.5] - 2023-01-25
 
 ### Fixed
