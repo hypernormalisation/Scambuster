@@ -12,11 +12,7 @@ Works by packaging scammer lists curated by trusted sources like Realm Discords,
 
 ### Install
 
-To start using Scambuster, install the base addon and a provider extension. It is recommended to do this via. Curseforge, and keep them up-to-date using the Curse addon manager.
-
-For instance, if playing on Golemagg install both of:
-- https://www.curseforge.com/wow/addons/scambuster
-- https://www.curseforge.com/wow/addons/scambuster-golemagg
+To start using Scambuster, install the base addon and a provider extension.
 
 ### Configure
 
