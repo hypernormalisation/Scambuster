@@ -4,6 +4,8 @@
 
 ![image](https://user-images.githubusercontent.com/52763122/212796308-8eb40892-0f36-48ba-a226-a68a2addde8b.png)
 
+[![GitHub All Releases](https://img.shields.io/github/downloads/Hypernormalisation/Scambuster/total?logo=github&style=for-the-badge)](https://github.com/Hypernormalisation/Scambuster/releases/latest)
+
 An addon and framework for alerting the user when they encounter a known scammer in WoW WotLK Classic.
 
 Works by packaging scammer lists curated by trusted sources like Realm Discords, and is extensible so communities can tailor their own blocklists and extend Scambuster with them.
