@@ -1,3 +1,8 @@
+## [0.1.7] - 2024-05-04
+
+### Changed
+- .toc files for Cata and SoD versions of wow included. Interface versions bumped accordingly.
+
 ## [0.1.6] - 2023-04-08
 
 ### Fixed
